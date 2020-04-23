@@ -1,4 +1,5 @@
 import sys
+import fields as fe
 
 class Braid:
     # Some convetions:
@@ -36,6 +37,7 @@ class Braid:
         self.res_len = [0 for _ in range(1 << self.d)]
         self.edge_signs = []
         self.maps = [{} for _ in range(1 << self.d)]
+        self.char = 5
         #print("Initialized")
 
     def comp_maps(self):
@@ -50,6 +52,7 @@ class Braid:
         if not self.maps[0]:
             self.comp_maps()
         p = [[] for _ in range (1<<self.d)]
+        zero = fe.FE(0,self.char)
         for v in range(1<<self.d):
             #print(v,self.height(v))
             #print(self.maps)
@@ -69,20 +72,20 @@ class Braid:
                                     p[v][s][a] = p[v][s].get(a,{})
                                     for t2 in self.maps[u][d2][t1]:
                                         prod = self.maps[v][d1][s][t1] * self.maps[u][d2][t1][t2]
-                                        p[v][s][a][t2] = (p[v][s][a]).get(t2,0) + prod
+                                        p[v][s][a][t2] = (p[v][s][a]).get(t2,zero) + prod
         return p
 
     def check_dd(self):
         for r in range(self.d - 1):
             prod = self.dd(r)
-            print(prod,"\n")
+            #print(prod,"\n")
             for v in range(1<<self.d):
                 if self.height(v) == r:
                     for g in range(len(prod[v])):
                         for de in prod[v][g]:
                             for t in prod[v][g][de]:
-                                if prod[v][g][de][t] != 0:
-                                    print("ERROR! dd NOT 0",v,g,de,t,prod[v][g][de][t],"\n")
+                                if prod[v][g][de][t].n:
+                                    print("ERROR! dd NOT 0",v,g,de,t,"$",prod[v][g][de][t],"$\n")
                                     #assert False
                 else:
                     assert (not prod[v])
@@ -99,7 +102,7 @@ class Braid:
         #This is the absolute value function
         #It converts a braid group generator to the location of the crossing
         if s < 0:
-            return -1*s
+            return -s
         return s
 
     def raw_group_dims(self):
@@ -143,7 +146,7 @@ class Braid:
         if p == 0:
             if a > 0:
                 return " + " + str(a)
-            return " - " + str(-1 * a)
+            return " - " + str(-a)
         if a == 1: 
             if p == 1:
                 return " + q"
@@ -158,7 +161,7 @@ class Braid:
             return " + " + str(a) + "q^{" + str(p) + "}"
         if p == 1:
             return " - " + str(a) + "q"
-        return " - " + str(-1 * a) + "q^{" + str(p) + "}"
+        return " - " + str(-a) + "q^{" + str(p) + "}"
         #Raise exception if here
 
 
@@ -179,7 +182,7 @@ class Braid:
 
 
     """
-   	def euler_characteristic(self):
+    def euler_characteristic(self):
         dims = self.quantum_group_dims()
         for i in range(1,len(dims)):
             for key in dims[i]:
@@ -296,7 +299,7 @@ class Braid:
                         v = k + (m << (j+1))
                         #print("v,j,i, [], k,m")
                         #print(v,j,i,[(v>>s)%2 for s in range(n)],k,m)
-                        self.edge_signs[v + (1<<i)][j] = -1 * self.edge_signs[v][j] * self.square_sign(v,j,i)
+                        self.edge_signs[v + (1<<i)][j] = -self.edge_signs[v][j] * self.square_sign(v,j,i)
         return self.edge_signs
     
     def get_edge_sign(self,edge):
@@ -439,11 +442,12 @@ class Braid:
     def induced_map(self,v,vmap):
         xd = self.get_res_len(v)
         assert (xd == len(vmap))
+        zero = fe.FE(0,self.char)
         #print(vmap)
         algebra_map = [{} for _ in range(1<<xd)]
         for i in range(1<<xd):
             ls = []
-            p = 1
+            p = fe.FE(1,self.char)
             for j in range(xd):
                 if (i>>j)%2 == 1:
                     ls.append(vmap[j][0])
@@ -463,7 +467,7 @@ class Braid:
             #print(ls)
             for t in ls:
                 target += (1<<t)
-            algebra_map[i][target] = algebra_map[i].get(target,0) + p*sign
+            algebra_map[i][target] = algebra_map[i].get(target,zero) + p*sign
         return algebra_map
     
     def scalar_mult_algebra_map(self,scalar,mp):
@@ -474,9 +478,10 @@ class Braid:
     
     def add_algebra_maps(self,map1,map2):
         assert (len(map1) == len(map2))
+        zero = fe.FE(0,self.char)
         for i in range(len(map2)):
             for key in map2[i]:
-                map1[i][key] = map1[i].get(key,0) + map2[i][key]
+                map1[i][key] = map1[i].get(key,zero) + map2[i][key]
         #not returned, stored in place in map1
     
     def split_map(self,edge):
@@ -499,16 +504,16 @@ class Braid:
                 #if not involved in the split
                 if a[0] not in source_res[i]:
                     if source_res[i][0] in target_res[j]:
-                        bmap[i] = (j,1)
+                        bmap[i] = (j,fe.FE(1,self.char))
                 #if involved in the split
                 else: 
                     #arrow head in target ?
                     if a[0] in target_res[j]:
-                        bmap[i] = (j,1)
+                        bmap[i] = (j,fe.FE(1,self.char))
                         assert(d[0] == -1)
                         d[0] = j
         #print(bmap)
-        imap = self.induced_map(edge[0],bmap)
+        imap = self.induced_map(edge[0],bmap) #TAG for UPDATE
         map0 = [{} for _ in range(len(imap))]
         map1 = [{} for _ in range(len(imap))]
         for i in range(len(imap)):
@@ -518,7 +523,7 @@ class Braid:
                     for j in range(d[0]):
                         if (key>>j)%2 == 1:
                             sign *= -1
-                    map0[i][key+(1<<d[0])] = -1*sign*imap[i][key]
+                    map0[i][key+(1<<d[0])] = -imap[i][key]*sign
                 #else:
                 #    map0[i][0] = 0
                 if (key>>d[1])%2 == 0:
@@ -529,7 +534,7 @@ class Braid:
                     #print("i,key,imap[i],d[1]")
                     #print(i,key,imap[i],d[1])
                     #print("map1[i][j+(1<<d[1])] = -1*imap[i][key]")
-                    map1[i][key+(1<<d[1])] = sign*imap[i][key]
+                    map1[i][key+(1<<d[1])] = imap[i][key]*sign
                 #else:
                 #    map1[i][0] = 0
         #print(imap)
@@ -629,13 +634,13 @@ class Braid:
         scir = self.get_res_len(edge[0])
         next = edge[0] + (1<<edge[1])
         if scir < self.get_res_len(next):
-            mp = self.split_map(edge)
+            mp = self.split_map(edge) #TAG FIELD UPDATE
             self.scalar_mult_algebra_map(self.get_edge_sign(edge),mp)
             return mp
         else:
-            vmap = [(self.get_circle(next,self.get_res(edge[0])[i][0]),1) for i in range(scir)]
+            vmap = [(self.get_circle(next,self.get_res(edge[0])[i][0]),fe.FE(1,self.char)) for i in range(scir)]
             #print(vmap)
-            mp = self.induced_map(edge[0],vmap)
+            mp = self.induced_map(edge[0],vmap) #TAG FIELD UPDATE
             self.scalar_mult_algebra_map(self.get_edge_sign(edge),mp)
             return mp
     
