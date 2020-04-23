@@ -1,3 +1,5 @@
+import sys
+
 class Braid:
     # Some convetions:
     # Implement x used for crossing index number in presentation
@@ -22,6 +24,7 @@ class Braid:
         self.presentation = pres
         #The braid index is inferred. Perhaps it is better to take it as an argument.
         self.b = self.comp_b(self.presentation)
+        self.nmin = self.neg()
         self.d = len(self.presentation)
         self.x_diagram = []
         self.closure = []
@@ -32,7 +35,65 @@ class Braid:
         self.res = [[] for _ in range(1 << self.d)]
         self.res_len = [0 for _ in range(1 << self.d)]
         self.edge_signs = []
+        self.maps = [{} for _ in range(1 << self.d)]
         #print("Initialized")
+
+    def comp_maps(self):
+        self.comp_edge_signs()
+        for v in range(1<<self.d):
+            for d in range(self.d):
+                if (v>>d)%2 == 0: #not v & (1<<d) 
+                    self.maps[v][d] = self.edge_map((v,d))
+
+    def dd(self,r):
+        assert (r >= 0 and r < self.d - 1)
+        if not self.maps[0]:
+            self.comp_maps()
+        p = [[] for _ in range (1<<self.d)]
+        for v in range(1<<self.d):
+            #print(v,self.height(v))
+            #print(self.maps)
+            if self.height(v) == r:
+                alg_size = 1<<self.get_res_len(v)
+                p[v] = [{} for _ in range(alg_size)]
+                for d1 in self.maps[v]:
+                    for s in range(alg_size):
+                        for t1 in self.maps[v][d1][s]:
+                            u = v + (1 << d1)
+                            for d2 in range(self.d):
+                                if (u >> d2) % 2 == 0: #not u & (1<<d2):
+                                    if d1 < d2:
+                                        a = (d1,d2)
+                                    else:
+                                        a = (d2,d1)
+                                    p[v][s][a] = p[v][s].get(a,{})
+                                    for t2 in self.maps[u][d2][t1]:
+                                        prod = self.maps[v][d1][s][t1] * self.maps[u][d2][t1][t2]
+                                        p[v][s][a][t2] = (p[v][s][a]).get(t2,0) + prod
+        return p
+
+    def check_dd(self):
+        for r in range(self.d - 1):
+            prod = self.dd(r)
+            print(prod,"\n")
+            for v in range(1<<self.d):
+                if self.height(v) == r:
+                    for g in range(len(prod[v])):
+                        for de in prod[v][g]:
+                            for t in prod[v][g][de]:
+                                if prod[v][g][de][t] != 0:
+                                    print("ERROR! dd NOT 0",v,g,de,t,prod[v][g][de][t],"\n")
+                                    #assert False
+                else:
+                    assert (not prod[v])
+
+
+    def neg(self):
+        n = 0
+        for x in self.presentation:
+            if x < 0:
+                n += 1
+        return n
     
     def abss(self,s):
         #This is the absolute value function
@@ -40,6 +101,102 @@ class Braid:
         if s < 0:
             return -1*s
         return s
+
+    def raw_group_dims(self):
+        dims = [0 for i in range(self.d + 1)]
+        for v in range(1<<self.d):
+            r = self.height(v)
+            dims[r] += (1<<self.get_res_len(v))
+        return dims
+
+    def raw_euler_characteristic(self):
+        dims = self.raw_group_dims()
+        chi = 0
+        for i in range(len(dims)):
+            chi += dims[i] * (-1) ** i
+        return chi * (-1) ** self.nmin
+
+    def choose(self,n,k):
+        a = b = 1
+        if k > n//2:
+            return self.choose(n,n-k)
+        for i in range(k):
+            a *= (n-i)
+            b *= i+1
+        return a//b
+    
+    def euler_characteristic(self):
+        dims = self.quantum_group_dims()
+        shift = 0
+        if self.nmin % 2 == 1:
+            shift = 1
+            for key in dims[0]:
+                dims[0][key] *= -1
+        for i in range(1,len(dims)):
+            for key in dims[i]:
+                dims[0][key] = dims[0].get(key,0) + ((-1) ** (i+shift))*dims[i][key]
+        return dims[0]
+
+    def str_q(self,a,p):
+        if a == 0:
+            return ""
+        if p == 0:
+            if a > 0:
+                return " + " + str(a)
+            return " - " + str(-1 * a)
+        if a == 1: 
+            if p == 1:
+                return " + q"
+            return " + q^{" + str(p) + "}"
+        if a == -1:
+            if p == 1:
+                return " - q"
+            return " - q^{" + str(p) + "}"
+        if a > 1:
+            if p == 1:
+                return " + " + str(a) + "q"
+            return " + " + str(a) + "q^{" + str(p) + "}"
+        if p == 1:
+            return " - " + str(a) + "q"
+        return " - " + str(-1 * a) + "q^{" + str(p) + "}"
+        #Raise exception if here
+
+
+    def print_Jones(self):
+        poly = self.euler_characteristic()
+        s = ""
+        for key in sorted(poly.keys()):
+            s += self.str_q(poly[key],key)
+            #value = poly[key]
+            #print(key, value)
+            #if value != 0:
+            #    if value < 0:
+            #        s = s[:-2] + "- "
+            #    s = s + str(self.abss(value))+"q^("+str(key)+") + "
+        if s[1] == '-':
+            return '-'+s[3:]
+        return s[3:]
+
+
+    """
+   	def euler_characteristic(self):
+        dims = self.quantum_group_dims()
+        for i in range(1,len(dims)):
+            for key in dims[i]:
+                dims[0][key] = dims[0].get(key,0) + (-1 ** i)*dims[i][key]
+        return dims[0]
+    """
+
+    def quantum_group_dims(self):
+        dims = [{} for i in range(self.d + 1)]
+        for v in range(1<<self.d):
+            r = self.height(v)
+            dv = self.get_res_len(v)
+            for k in range(dv+1):
+                Q = dv - 2*k + self.d - 3*self.nmin + r
+                dims[r][Q] = dims[r].get(Q,0) + self.choose(dv,k)
+        return dims 
+
     
     def comp_b(self,braid):
         i = 0
@@ -50,10 +207,10 @@ class Braid:
         return i+1
 
     def height(self,v):
-        r = 0
+        r = 0 
         while v:
             r += v%2
-            v == v >> 1
+            v = v >> 1
         return r
         
     def get_x_diagram(self):
@@ -506,48 +663,113 @@ class Braid:
                 else:
                     print("            ",self.str_v(key),"with factor",algebra_map[i][key])
         print()
+
+    def str_e(self,g,l):
+        s = ""
+        for  i in range(l):
+            s += str((g>>i)%2)
+        return s
         
     def tex_map(self,algebra_map,edge):
+        sv = edge[0]
+        sl = self.get_res_len(sv)
+        tv = edge[0] + (1<<edge[1])
+        tl = self.get_res_len(tv)
         print("The source resolution:")
-        print("\\[",self.get_res(edge[0]),"\\]\n")
+        print("\\[",self.get_res(sv),"\\]\n")
         print("The target resolution:")
-        print("\\[",self.get_res(edge[0] + (1<<edge[1])),"\\]\n")
+        print("\\[",self.get_res(tv),"\\]\n")
         print("\\begin{center}\\begin{tabular}{|r|r|r|}\\hline")
         print("Source&Target&Factor\\\\\\hline")
         for i in range(len(algebra_map)):
-            print(self.str_v(i),"&&\\\\")
+            print(self.str_e(i,sl),"&&\\\\")
             for key in algebra_map[i]:
-                print("&",self.str_v(key),"&",algebra_map[i][key],"\\\\")
+                print("&",self.str_e(key,tl),"&",algebra_map[i][key],"\\\\")
             print("\\hline")
         print("\\end{tabular}\\end{center}")
+
         
-    def texplanation(self):
-        print("\\section{Braid: $",self.presentation ,"$}\n")
+    def texplanation(self,s = "", maps = True):
+        print("\\section{Braid: ",s,"$",self.presentation ,"$}\n")
         self.tex_braid()
-        print("\\vspace{.5cm}\n")
+        print("\nUngraded Euler Characterist: $",self.raw_euler_characteristic(),"$\n")
+        print("\n(Unreduced) Jones Polynomial: $\\hat{J}(L) = $\n\\[",self.print_Jones(),"\\]\n")
         print("\\subsection*{The distinguished vertex}\n")
         print("Vertex:",self.str_v(self.get_inv_v()))
         print("\nThe distinguished vertex's resolution:")
         print("\\[",self.get_res(self.get_inv_v()),"\\]")
-        print("\\subsection*{Vertices that map to the vertex}\n")
-        edges_in = self.get_edges_into_inv()
-        for edge in edges_in:
-            print("Vertex:", self.str_v(edge[0]),"resolving index:",edge[1])
-            print("\nMap:")
-            self.tex_map(self.edge_map(edge),edge)
-        if not edges_in:
-            print("NONE")
-        
-        print("\\subsection*{Vertices that the vertex maps to}\n")
-        edges_out = self.get_edges_out_of_inv()
-        for edge in edges_out:
-            print("Vertex:", self.str_v(edge[0]+(1<<edge[1])),"resolving index:",edge[1])
-            print("\nMap:")
-            self.tex_map(self.edge_map(edge),edge)
-        if not edges_out:
-            print("NONE")
+        print("The algebra element of the invariant is", "1"*self.b)
+        if maps:
+            #### Fix maps so correct number of 0s
+            print("\\subsection*{Vertices that map to the vertex}\n")
+            edges_in = self.get_edges_into_inv()
+            for edge in edges_in:
+                print("Vertex:", self.str_v(edge[0]),"resolving index:",edge[1])
+                print("\nMap:")
+                self.tex_map(self.edge_map(edge),edge)
+            if not edges_in:
+                print("NONE")
+            
+            print("\\subsection*{Vertices that the vertex maps to}\n")
+            edges_out = self.get_edges_out_of_inv()
+            for edge in edges_out:
+                print("Vertex:", self.str_v(edge[0]+(1<<edge[1])),"resolving index:",edge[1])
+                print("\nMap:")
+                self.tex_map(self.edge_map(edge),edge)
+            if not edges_out:
+                print("NONE")
         print("\\newpage\n")
         
 
+def make_braid_list(file):
+    ls = []
+    with open(file) as f:
+        for line in f:
+            sl = line.strip().split()
+            ls.append([int(i) for i in sl])
+    return ls
 
+def make_fancy_braid_list(file):
+    ls = []
+    with open(file) as f:
+        for line in f:
+            sl = line.strip().split()
+            ls.append((sl[0],[int(sl[i]) for i in range(1,len(sl))]))
+    return ls
 
+def driver(fancy = False):
+    if fancy:
+        braid_list = make_fancy_braid_list(sys.argv[1])
+    else:
+        braid_list = make_braid_list(sys.argv[1])
+    print("""\\documentclass{article}
+\\usepackage{thesispkg}
+\\usepackage{fancyhdr}
+
+\\pagestyle{fancy}
+\\fancyhf{}
+\\renewcommand{\\sectionmark}[1]{\\markright{#1}}
+\\lhead{\\fancyplain{}{\\rightmark }} 
+
+\\begin{document}""")
+    for braid in braid_list:
+        if fancy:
+            b = Braid(braid[1])
+            b.texplanation(braid[0],False)
+            b.check_dd()
+        else:
+            b = Braid(braid)
+            b.texplanation()
+            b.check_dd()
+    print("\\end{document}")
+
+def test_driver():
+    braid_list = make_fancy_braid_list(sys.argv[1])
+    for braid in braid_list:
+        b = Braid(braid[1])
+        #print(braid[0], b.raw_euler_characteristic())
+        print(braid[0], b.print_Jones())
+
+if __name__ == "__main__":
+    #test_driver()
+    driver(True)
