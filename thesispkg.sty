@@ -1,0 +1,23 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{thesispkg}[2020/03/14 Package for Commands for My Thesis]
+
+\RequirePackage{tikz,tikz-cd}
+\RequirePackage{amsmath,amsthm,amsfonts}
+\RequirePackage{braidresolution}
+
+\newcommand{\rsc}{0.43}
+\newcommand{\too}{\longrightarrow}
+\newcommand{\ob}{\operatorname{Ob}}
+
+\newcommand{\botcirc}[2]{\draw (#1,#2) arc (180:360:.5cm and .125cm);
+\draw[dashed] (#1,#2)++(1,0) arc (0:180:.5cm and .125cm);}
+\newcommand{\topcirc}[2]{\draw (#1,#2) ++(1,0) arc(0:360:.5cm and .125cm);}
+\newcommand{\nodeb}[3]{\draw (#1,#2) ++(.5,-.125) node[below]{$#3$};}
+\newcommand{\nodea}[3]{\draw (#1,#2) ++(.5,.125) node[above]{$#3$};}
+\newcommand{\Sz}{Sz}
+
+\newtheorem{defn}{Definition}
+\newtheorem{prop}{Proposition}
+\newtheorem{thm}{Theorem}
+\newtheorem{cor}{Corollary}
+\newtheorem{lem}{Lemma}
