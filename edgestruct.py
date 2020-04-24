@@ -1,8 +1,9 @@
 class EdgeStruct:
 
-    def __init__(self,d):
+    def __init__(self,d,value = None):
         self.d = d
-        self.e = [{j:None for j in range(self.d) if not i&(1<<j)} for i in range(1<<d)]
+        self.default = value
+        self.e = [{j:value for j in range(self.d) if not i&(1<<j)} for i in range(1<<d)]
         self.max_size = (1<<(d-1)) * d
 
     def str_v(self,v):
@@ -14,7 +15,7 @@ class EdgeStruct:
     def __str__(self):
         s = ""
         for ed in self:
-            s += "Vertex: "+self.str_v(ed[0])+" d: "+self.str_v(1<<ed[1])+" val: "+str(self[ed])+"\n"
+            s += "\nVertex: "+self.str_v(ed[0])+" d: "+self.str_v(1<<ed[1])+" val: "+str(self[ed])+"\n"
         return s
 
     def it_print(self):
@@ -64,7 +65,19 @@ class EdgeStruct:
         return value
 
     def is_full(self):
-        return self.__len__() == self.max_size
+        #This version until controlled __len__() is implemented
+        for edge in self:
+            if self[edge] == None:
+                return False
+        return True
+
+    def is_fully_changed(self):
+        for edge in self:
+            if self[edge] == self.default:
+                return False
+        return True
+        #This version when __len__() is implemented
+        #return self.__len__() == self.max_size
 
     def nonzero(self):
         assert (self.is_full()), "Not all edges have values."
@@ -72,6 +85,8 @@ class EdgeStruct:
             if self[edge] != 0:
                 return True
         return False
+
+
 
 
 

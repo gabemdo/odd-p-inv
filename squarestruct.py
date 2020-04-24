@@ -31,9 +31,17 @@ class SquareStruct:
 
     def __iter__(self):
         #change to inductive order
+        for d in range(1,self.d):
+            for a in range(d):
+                for b in range(1<<a):
+                    for c in range(1<<(d-a-1)):
+                        v = b + (c<<(a+1))
+                        yield v, a, d
+        """
         for i in range(1<<self.d):
             for j in self.e[i]:
                 yield (i,*j)
+        """
 
     def __len__(self):
         #update later to attribute that is self updating

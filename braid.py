@@ -1,5 +1,7 @@
 import sys
 import fields as fe
+import edgestruct as es
+import squarestruct as ss
 
 class Braid:
     # Some convetions:
@@ -35,60 +37,77 @@ class Braid:
         self.edges_into_inv = []
         self.res = [[] for _ in range(1 << self.d)]
         self.res_len = [0 for _ in range(1 << self.d)]
-        self.edge_signs = []
-        self.maps = [{} for _ in range(1 << self.d)]
-        self.char = 5
+        self.edge_signs = es.EdgeStruct(self.d,0)
+        self.squares = ss.SquareStruct(self.d)
+        self.maps = es.EdgeStruct(self.d)
+        self.char = 0
         #print("Initialized")
 
     def comp_maps(self):
+        if self.maps.is_fully_changed():
+            return None
         self.comp_edge_signs()
-        for v in range(1<<self.d):
-            for d in range(self.d):
-                if (v>>d)%2 == 0: #not v & (1<<d) 
-                    self.maps[v][d] = self.edge_map((v,d))
+        for edge in self.maps:
+            self.maps[edge] = self.edge_map(edge)
 
     def dd(self,r):
         assert (r >= 0 and r < self.d - 1)
-        if not self.maps[0]:
+        if not self.maps.is_fully_changed():
             self.comp_maps()
-        p = [[] for _ in range (1<<self.d)]
+        p = [[] for _ in range(1<<self.d)]
         zero = fe.FE(0,self.char)
-        for v in range(1<<self.d):
-            #print(v,self.height(v))
-            #print(self.maps)
+        for v,i in self.maps:
             if self.height(v) == r:
+                u = v + (1<<i)
                 alg_size = 1<<self.get_res_len(v)
-                p[v] = [{} for _ in range(alg_size)]
-                for d1 in self.maps[v]:
-                    for s in range(alg_size):
-                        for t1 in self.maps[v][d1][s]:
-                            u = v + (1 << d1)
-                            for d2 in range(self.d):
-                                if (u >> d2) % 2 == 0: #not u & (1<<d2):
-                                    if d1 < d2:
-                                        a = (d1,d2)
-                                    else:
-                                        a = (d2,d1)
-                                    p[v][s][a] = p[v][s].get(a,{})
-                                    for t2 in self.maps[u][d2][t1]:
-                                        prod = self.maps[v][d1][s][t1] * self.maps[u][d2][t1][t2]
-                                        p[v][s][a][t2] = (p[v][s][a]).get(t2,zero) + prod
+                if not p[v]:
+                    p[v] = [{} for _ in range(alg_size)]
+                for s in range(alg_size):
+                    for t1 in self.maps[v,i][s]:
+                        for j in range(self.d):
+                            if not u & (1<<j):#(u>>j)%2 == 0:
+                                if i<j:
+                                    a = (i,j)
+                                else:
+                                    a = (j,i)
+                                p[v][s][a] = p[v][s].get(a,{})
+                                for t2 in self.maps[u,j][t1]:
+                                    prod = self.maps[v,i][s][t1] * self.maps[u,j][t1][t2]
+                                    p[v][s][a][t2] = p[v][s][a].get(t2,zero) + prod
         return p
 
     def check_dd(self):
+        print("\n\nCHECKING $dd = 0$\n\n")
+        #error checking
+        flag = True
+        #error_list = []
+        error_dict = {}
         for r in range(self.d - 1):
             prod = self.dd(r)
+            #print(prod)
             #print(prod,"\n")
-            for v in range(1<<self.d):
+            for v in range((1<<r)-1,(((1<<r)-1)<<(self.d-r))+1):
                 if self.height(v) == r:
                     for g in range(len(prod[v])):
                         for de in prod[v][g]:
                             for t in prod[v][g][de]:
+                                #print("$"+str(prod[v][g][de][t])+"$, ",end="")
+                                #print(v,g,de,t,"$",str(prod[v][g][de][t]),"$",end="")
                                 if prod[v][g][de][t].n:
-                                    print("ERROR! dd NOT 0",v,g,de,t,"$",prod[v][g][de][t],"$\n")
+                                    flag = False
+                                    #error_list.append((self.str_v(v),self.str_v(g),de,self.str_v(t)))
+                                    error_dict[(v,de[0],de[1])] = error_dict.get((v,de[0],de[1]),[]) + [(g,t)]
                                     #assert False
                 else:
                     assert (not prod[v])
+        if not flag:
+            print("ERROR!!!!! (vector,i,j) : [$g\\to t$],\n\n")
+            for v,i,j in error_dict:
+                s = ""
+                for map in error_dict[(v,i,j)]:
+                    s += self.str_v(map[0]) + "\\to" + self.str_v(map[1]) + ", "
+                print("({},{},{}) : $[{}]$\n\n".format(self.str_v(v),i,j,s))
+
 
 
     def neg(self):
@@ -170,25 +189,9 @@ class Braid:
         s = ""
         for key in sorted(poly.keys()):
             s += self.str_q(poly[key],key)
-            #value = poly[key]
-            #print(key, value)
-            #if value != 0:
-            #    if value < 0:
-            #        s = s[:-2] + "- "
-            #    s = s + str(self.abss(value))+"q^("+str(key)+") + "
         if s[1] == '-':
             return '-'+s[3:]
         return s[3:]
-
-
-    """
-    def euler_characteristic(self):
-        dims = self.quantum_group_dims()
-        for i in range(1,len(dims)):
-            for key in dims[i]:
-                dims[0][key] = dims[0].get(key,0) + (-1 ** i)*dims[i][key]
-        return dims[0]
-    """
 
     def quantum_group_dims(self):
         dims = [{} for i in range(self.d + 1)]
@@ -199,7 +202,6 @@ class Braid:
                 Q = dv - 2*k + self.d - 3*self.nmin + r
                 dims[r][Q] = dims[r].get(Q,0) + self.choose(dv,k)
         return dims 
-
     
     def comp_b(self,braid):
         i = 0
@@ -263,9 +265,10 @@ class Braid:
     def v(self,v,i):
         return (v >> i) % 2
     
+    #This whole part may be defunct. Done automatically by edgestruct
     def edges(self):
         #Check if edges_signs has already be initilized or computed
-        if self.edge_signs:
+        if self.edge_signs.is_fully_changed():
             return self.edge_signs
         n = self.d
         vertices = []
@@ -281,29 +284,18 @@ class Braid:
     def comp_edge_signs(self):
         ## Algorithm due to Shumakovitch
         #Make sure edge_signs is initialized
-        if not self.edge_signs:
-            self.edges()
+        if self.edge_signs.is_fully_changed():
+            return self.edge_signs
         n = self.d
-        #Check if sign assignment is trival (no squares)
-        if n < 2:
-            return self.edge_signs
-        #Check if sign assignment has already been computed
-        #print(self.edge_signs)
-        assert (len(self.edge_signs) > 3)
-        if self.edge_signs[2][0] != 0:
-            return self.edge_signs
-        for i in range(1,n):
-            for j in range(i):
-                for k in range(1<<j):
-                    for m in range(1<<(i-j-1)):
-                        v = k + (m << (j+1))
-                        #print("v,j,i, [], k,m")
-                        #print(v,j,i,[(v>>s)%2 for s in range(n)],k,m)
-                        self.edge_signs[v + (1<<i)][j] = -self.edge_signs[v][j] * self.square_sign(v,j,i)
+        for delta in range(self.d):
+            for base in range(1<<delta):
+                self.edge_signs[base,delta] = 1
+        for v,i,j in self.squares:
+            self.edge_signs[v + (1<<j),i] = -self.edge_signs[v,i] * self.square_sign(v,i,j)
         return self.edge_signs
     
     def get_edge_sign(self,edge):
-        return self.comp_edge_signs()[edge[0]][edge[1]]
+        return self.comp_edge_signs()[edge[0],edge[1]]
         
     def zero_smoothing(self,crossing):
         assert (len(crossing) == 4)
@@ -467,7 +459,8 @@ class Braid:
             #print(ls)
             for t in ls:
                 target += (1<<t)
-            algebra_map[i][target] = algebra_map[i].get(target,zero) + p*sign
+            if sign:
+                algebra_map[i][target] = algebra_map[i].get(target,zero) + p*sign
         return algebra_map
     
     def scalar_mult_algebra_map(self,scalar,mp):
@@ -542,52 +535,6 @@ class Braid:
         #print(map0,map1)
         self.add_algebra_maps(map0,map1)
         return map0
-        
-    def old_edge_to_split_map(self,edge):
-        assert (len(edge) == self.d)
-        delta = edge.index(-1)
-        source = []
-        target = []
-        source[:] = edge[:]
-        target[:] = edge[:]
-        source[delta] = 0
-        target[delta] = 1
-        source_res = self.get_res(source)
-        target_res = self.get_res(target)
-        a = self.get_x_diagram()[delta][0:2]
-        bmap = {}
-        d = [-1,-1]
-        for j in range(len(target_res)):
-            if a[1] in target_res[j]:
-                assert (d[1] == -1)
-                d[1] = j
-            for i in range(len(source_res)):
-                    if a[0] not in source_res[i]:
-                        if source_res[i][0] in target_res[j]:
-                            bmap[(i,j)] = 1
-                    else:
-                        if a[0] in target_res[j]:
-                            bmap[(i,j)] = 1
-                            assert (d[0] == -1)
-                            d[0] = j
-        imap = self.induced_map(bmap)
-        map0 = { (key[0],key[1]+(1<<d[0]) if (key[1]>>d[0])%2 == 0 else 0) :
-                -1*imap[key] if (key[1]>>d[0])%2 == 0 else 0 
-                for key in imap}
-        map1 = { (key[0],key[1]+(1<<d[1]) if (key[1]>>d[1])%2 == 0 else 0) :
-                imap[key] if (key[1]>>d[1])%2 == 0 else 0 
-                for key in imap}
-        total_map = self.add_algebra_maps(map0,map1)
-        return total_map
-    
-    #old imap {(i,j):k} where i --k--> j
-    #old map0 = { (i,    j+(1<<d[0])) if (j>>d[0])%2 == 0) else 0    ):
-    #              -1*k if (j>>d[0])%2 == 0 else 0  }
-    #new imap [(j,k)] = [(t[0],t[1])]
-    #new map0 = [ {t[0]+1<<d[0] if (t[0]>>d[0])%2 == 0 else 0 :
-    #              -1*t[1] if (t[0]>>d[0])%2 == 0 else 0 }  for t in imap]
-    # NEW VIE  = [(t[0]+1<<d[0],-1*t[1]) if (t[0]>>d[0])%2 == 0, else (0,0)]
-
     
     def get_circle(self,re,segment):
         resolution = self.get_res(re)
@@ -596,37 +543,43 @@ class Braid:
                 return i
         #Raise exception if here
 
-    def square_sign(self,v00,a1,a2):
+    def square_sign(self,v,i,j):
         #Algorithm due to Shumakovitch
         #Adapted to current set up
         #The input should be a vertex and the indices of two arrow changing from 0 to 1
-        assert (self.v(v00,a1) == 0 and self.v(v00,a2) == 0 and a1 != a2)
-        c00 = self.get_res_len(v00)
-        c11 = self.get_res_len(v00 + (1<<a1) + (1<<a2))
+        assert (self.v(v,i) == 0 and self.v(v,j) == 0 and i != j)
+        c00 = self.get_res_len(v)
+        c11 = self.get_res_len(v + (1<<i) + (1<<j))
         if c00 < c11:
+            self.squares[v,i,j] = "Type A, increasing cycles"
             return -1 #Type A
         elif c11 < c00:
+            self.squares[v,i,j] = "Type C, decreasing cycles"
             return 1  #Type C
         pd = self.get_x_diagram()
-        t1 = pd[a1][2]
-        h1 = pd[a1][0]
-        t2 = pd[a2][2]
-        h2 = pd[a2][0]
-        r00 = self.get_res(v00)
-        lct1 = self.get_circle(v00,t1)
-        lct2 = self.get_circle(v00,t2)
+        t1 = pd[i][2]
+        h1 = pd[i][0]
+        t2 = pd[j][2]
+        h2 = pd[j][0]
+        r00 = self.get_res(v)
+        lct1 = self.get_circle(v,t1) #index of circle t1 is in
+        lch2 = self.get_circle(v,h2) #index of circle h2 is in
 
-        if h1 not in r00[lct2] and h2 not in r00[lct1]:
+        if (h1 in r00[lch2] and t2 in r00[lct1]) and (h1 not in r00[lct1]):
+            self.squares[v,i,j] = "Type A, same no., arrows point likewise"
             return -1 #Type A
-        if h1 not in r00[lct1] or h2 not in r00[lct2]:
+        if h1 not in r00[lct1] or t2 not in r00[lch2]:
+            self.squares[v,i,j] = "Type C, same no., arrows point differently"
             return 1  #Type C
-        assert(lct1 == lct2)
-        assert(h1 in r00[lct1] and h2 in r00[lct2])
+        assert(lct1 == lch2)
+        assert(h1 in r00[lct1] and t2 in r00[lct1])
         #r01 = self.get_res(v00 + (1<<a2))
-        rct1 = self.get_circle(v00 + (1<<a2),t1)
-        rct2 = self.get_circle(v00 + (1<<a2),t2)
+        rct1 = self.get_circle(v + (1<<j),t1)
+        rct2 = self.get_circle(v + (1<<j),t2)
         if rct1 == rct2:
+            self.squares[v,i,j] = "Type Y"
             return 1  #Type Y
+        self.squares[v,i,j] = "Type X"
         return -1     #Type X
 
     def edge_map(self,edge):
@@ -723,7 +676,7 @@ class Braid:
                 self.tex_map(self.edge_map(edge),edge)
             if not edges_out:
                 print("NONE")
-        print("\\newpage\n")
+        #print("\\newpage\n")
         
 
 def make_braid_list(file):
@@ -762,6 +715,12 @@ def driver(fancy = False):
             b = Braid(braid[1])
             b.texplanation(braid[0],False)
             b.check_dd()
+            #print(b.edge_signs)
+            #for map in b.maps:
+            #    print(map,b.maps[map],"\n\n")
+            #for v,i,j in b.squares:
+            #    print((b.str_v(v),i,j),b.squares[v,i,j],"\n\n")
+            #print("\\newpage\n\n")
         else:
             b = Braid(braid)
             b.texplanation()

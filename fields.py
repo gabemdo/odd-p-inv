@@ -17,7 +17,7 @@ class FE:
                     g = self.gcd(n,d)
                     self.n, self.d = n//g, d//g
                     assert (self.d > 0), "Error with my gcd"
-        if characteristic == 2:
+        elif characteristic == 2:
             assert (isinstance(value, int) or isinstance(value, bool))
             self.n = bool(value)
         else:
