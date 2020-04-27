@@ -42,6 +42,13 @@ class FE:
             return a
         return self.gcd(b, a%b)
 
+    def __eq__(self,other):
+        if self.c != other.c:
+            return False
+        if self.c != 0:
+            return self.n == other.n
+        return self.n == other.n and self.d == other.d
+
     def __repr__(self):
         if self.c == 0 and self.d != 1:
             return "{}(({},{}),{})".format(self.__class__.__name__, self.n, self.d, self.c)
@@ -55,6 +62,11 @@ class FE:
         elif self.c == 2:
             return "I" if self.n else "O"
         return "{}_{}".format(self.n, self.c)
+
+    def __int__(self):
+        if self.c != 0 or self.d == 1:
+            return self.n
+        raise Error
 
     def __bool__(self):
         return bool(self.n)
@@ -99,7 +111,7 @@ class FE:
         return self
 
     def iaddp(self, other):
-        self.n = (self.n + other.n) % c
+        self.n = (self.n + other.n) % self.c
         return self
 
     def __neg__(self):

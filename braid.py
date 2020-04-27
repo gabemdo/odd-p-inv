@@ -2,6 +2,7 @@ import sys
 import fields as fe
 import edgestruct as es
 import squarestruct as ss
+import algebra as alg
 
 class Braid:
     # Some convetions:
@@ -20,7 +21,7 @@ class Braid:
     # ABBREVIATIONS:
     ### inv : the invariant or associated vertices, heights, etc.
     ### res : resolution
-    
+
     def __init__(self,pres):
         #The presentation of a braid is given as a list of non-zero integers
         assert (len(pres) > 0)
@@ -43,12 +44,85 @@ class Braid:
         self.char = 0
         #print("Initialized")
 
-    def comp_maps(self):
-        if self.maps.is_fully_changed():
-            return None
-        self.comp_edge_signs()
-        for edge in self.maps:
-            self.maps[edge] = self.edge_map(edge)
+
+
+    #Basic helper functions
+
+    def comp_b(self,braid):
+        i = 0
+        for s in braid:
+            c = alg.abs(s)
+            if c > i:
+                i = c
+        return i+1
+
+    def neg(self):
+        n = 0
+        for x in self.presentation:
+            if x < 0:
+                n += 1
+        return n
+
+    
+
+    def v(self,v,i):
+        return (v >> i) % 2
+
+    def get_inv_v(self):
+        #return the vertex number for the invariant
+        #if not self.inv_vertex:
+        if self.inv_v < 0:
+            #vertex = []
+            v = 0
+            #for x in self.presentation:
+            #    if x > 0:
+            #        vertex.append(0)
+            #    else:
+            #        vertex.append(1)
+            for i in range(self.d):
+                if self.presentation[i] < 0:
+                    v += (1<<i)
+            self.inv_v = v
+        return self.inv_v
+
+
+    #Basic Math Checks
+
+    def raw_group_dims(self):
+        dims = [0 for i in range(self.d + 1)]
+        for v in range(1<<self.d):
+            r = alg.height(v)
+            dims[r] += (1<<self.get_res_len(v))
+        return dims
+
+    def raw_euler_characteristic(self):
+        dims = self.raw_group_dims()
+        chi = 0
+        for i in range(len(dims)):
+            chi += dims[i] * (-1) ** i
+        return chi * (-1) ** self.nmin
+
+    def euler_characteristic(self):
+        dims = self.quantum_group_dims()
+        shift = 0
+        if self.nmin % 2 == 1:
+            shift = 1
+            for key in dims[0]:
+                dims[0][key] *= -1
+        for i in range(1,len(dims)):
+            for key in dims[i]:
+                dims[0][key] = dims[0].get(key,0) + ((-1) ** (i+shift))*dims[i][key]
+        return dims[0]
+
+    def quantum_group_dims(self):
+        dims = [{} for i in range(self.d + 1)]
+        for v in range(1<<self.d):
+            r = alg.height(v)
+            dv = self.get_res_len(v)
+            for k in range(dv+1):
+                Q = dv - 2*k + self.d - 3*self.nmin + r
+                dims[r][Q] = dims[r].get(Q,0) + alg.choose(dv,k)
+        return dims 
 
     def dd(self,r):
         assert (r >= 0 and r < self.d - 1)
@@ -57,7 +131,7 @@ class Braid:
         p = [[] for _ in range(1<<self.d)]
         zero = fe.FE(0,self.char)
         for v,i in self.maps:
-            if self.height(v) == r:
+            if alg.height(v) == r:
                 u = v + (1<<i)
                 alg_size = 1<<self.get_res_len(v)
                 if not p[v]:
@@ -87,7 +161,7 @@ class Braid:
             #print(prod)
             #print(prod,"\n")
             for v in range((1<<r)-1,(((1<<r)-1)<<(self.d-r))+1):
-                if self.height(v) == r:
+                if alg.height(v) == r:
                     for g in range(len(prod[v])):
                         for de in prod[v][g]:
                             for t in prod[v][g][de]:
@@ -110,54 +184,8 @@ class Braid:
 
 
 
-    def neg(self):
-        n = 0
-        for x in self.presentation:
-            if x < 0:
-                n += 1
-        return n
-    
-    def abss(self,s):
-        #This is the absolute value function
-        #It converts a braid group generator to the location of the crossing
-        if s < 0:
-            return -s
-        return s
 
-    def raw_group_dims(self):
-        dims = [0 for i in range(self.d + 1)]
-        for v in range(1<<self.d):
-            r = self.height(v)
-            dims[r] += (1<<self.get_res_len(v))
-        return dims
-
-    def raw_euler_characteristic(self):
-        dims = self.raw_group_dims()
-        chi = 0
-        for i in range(len(dims)):
-            chi += dims[i] * (-1) ** i
-        return chi * (-1) ** self.nmin
-
-    def choose(self,n,k):
-        a = b = 1
-        if k > n//2:
-            return self.choose(n,n-k)
-        for i in range(k):
-            a *= (n-i)
-            b *= i+1
-        return a//b
-    
-    def euler_characteristic(self):
-        dims = self.quantum_group_dims()
-        shift = 0
-        if self.nmin % 2 == 1:
-            shift = 1
-            for key in dims[0]:
-                dims[0][key] *= -1
-        for i in range(1,len(dims)):
-            for key in dims[i]:
-                dims[0][key] = dims[0].get(key,0) + ((-1) ** (i+shift))*dims[i][key]
-        return dims[0]
+    #TeX output functions
 
     def str_q(self,a,p):
         if a == 0:
@@ -183,7 +211,6 @@ class Braid:
         return " - " + str(-a) + "q^{" + str(p) + "}"
         #Raise exception if here
 
-
     def print_Jones(self):
         poly = self.euler_characteristic()
         s = ""
@@ -193,31 +220,96 @@ class Braid:
             return '-'+s[3:]
         return s[3:]
 
-    def quantum_group_dims(self):
-        dims = [{} for i in range(self.d + 1)]
-        for v in range(1<<self.d):
-            r = self.height(v)
-            dv = self.get_res_len(v)
-            for k in range(dv+1):
-                Q = dv - 2*k + self.d - 3*self.nmin + r
-                dims[r][Q] = dims[r].get(Q,0) + self.choose(dv,k)
-        return dims 
-    
-    def comp_b(self,braid):
-        i = 0
-        for s in braid:
-            c = self.abss(s)
-            if c > i:
-                i = c
-        return i+1
+    def str_v(self,v):
+        s = ""
+        for i in range(self.d):
+            s += str((v>>i)%2)
+        return s
 
-    def height(self,v):
-        r = 0 
-        while v:
-            r += v%2
-            v = v >> 1
-        return r
-        
+    def str_e(self,g,l):
+        s = ""
+        for i in range(l):
+            s += str((g>>i)%2)
+        return s
+
+    def tex_map(self,algebra_map,edge):
+        sv = edge[0]
+        sl = self.get_res_len(sv)
+        tv = edge[0] + (1<<edge[1])
+        tl = self.get_res_len(tv)
+        print("The source resolution:")
+        print("\\[",self.get_res(sv),"\\]\n")
+        print("The target resolution:")
+        print("\\[",self.get_res(tv),"\\]\n")
+        print("\\begin{center}\\begin{tabular}{|r|r|r|}\\hline")
+        print("Source&Target&Factor\\\\\\hline")
+        for i in range(len(algebra_map)):
+            print(self.str_e(i,sl),"&&\\\\")
+            for key in algebra_map[i]:
+                print("&",self.str_e(key,tl),"&",algebra_map[i][key],"\\\\")
+            print("\\hline")
+        print("\\end{tabular}\\end{center}")
+
+    def texplanation(self,s = "", maps = True, ddCheck = False):
+        print("\\section{Braid: ",s,"$",self.presentation ,"$}\n")
+        self.tex_braid()
+        print("\nUngraded Euler Characterist: $",self.raw_euler_characteristic(),"$\n")
+        print("\n(Unreduced) Jones Polynomial: $\\hat{J}(L) = $\n\\[",self.print_Jones(),"\\]\n")
+        print("\\subsection*{The distinguished vertex}\n")
+        print("Vertex:",self.str_v(self.get_inv_v()))
+        print("\nThe distinguished vertex's resolution:")
+        print("\\[",self.get_res(self.get_inv_v()),"\\]")
+        print("The algebra element of the invariant is", "1"*self.b)
+        if maps:
+            #### Fix maps so correct number of 0s
+            print("\\subsection*{Vertices that map to the vertex}\n")
+            edges_in = self.get_edges_into_inv()
+            for edge in edges_in:
+                print("Vertex:", self.str_v(edge[0]),"resolving index:",edge[1])
+                print("\nMap:")
+                self.tex_map(self.edge_map(edge),edge)
+            if not edges_in:
+                print("NONE")
+            
+            print("\\subsection*{Vertices that the vertex maps to}\n")
+            edges_out = self.get_edges_out_of_inv()
+            for edge in edges_out:
+                print("Vertex:", self.str_v(edge[0]+(1<<edge[1])),"resolving index:",edge[1])
+                print("\nMap:")
+                self.tex_map(self.edge_map(edge),edge)
+            if not edges_out:
+                print("NONE")
+        #print("\\newpage\n")
+
+    def tex_braid(self):
+        print("\\begin{center}\\begin{tikzpicture}")
+        i = 0
+        for x in self.presentation:
+            if x > 0:
+                print("\t\\braidline{{{}}}{{{}}}{{0}}{{{}}}{{1}}".format(self.b,x,i))
+            else: 
+                print("\t\\braidline{{{}}}{{{}}}{{0}}{{{}}}{{0}}".format(self.b,-1*x,i))
+            i += 1
+        print("\end{tikzpicture}\end{center}")
+
+    def print_map(self,algebra_map,edge):
+        print("  The source resolution, index 0..")
+        print("      ",self.get_res(edge[0]))
+        print("  The target resolution, index 0..")
+        print("      ",self.get_res(edge[0] + (1<<edge[1])),"\n")
+        for i in range(len(algebra_map)):
+            print("       ", self.str_v(i),"maps to")
+            for key in algebra_map[i]:
+                if algebra_map[i][key] == 0:
+                    print("             ZERO")                    
+                else:
+                    print("            ",self.str_v(key),"with factor",algebra_map[i][key])
+        print()
+
+
+
+    #Resolution Computation
+
     def get_x_diagram(self):
         if not self.x_diagram:
             n = self.b
@@ -238,7 +330,7 @@ class Braid:
                 x = self.presentation[j]
                 # compute current strand labels
                 b[:] = a[:]
-                c = self.abss(x)
+                c = alg.abs(x)
                 b[c-1] = i
                 i += 1
                 b[c] = i
@@ -261,50 +353,15 @@ class Braid:
             self.x_diagram = d
             #print(d)
         return self.x_diagram
-        
-    def v(self,v,i):
-        return (v >> i) % 2
-    
-    #This whole part may be defunct. Done automatically by edgestruct
-    def edges(self):
-        #Check if edges_signs has already be initilized or computed
-        if self.edge_signs.is_fully_changed():
-            return self.edge_signs
-        n = self.d
-        vertices = []
-        for i in range(1<<n):
-            e = {}
-            for j in range(n):
-                if self.v(i,j) == 0:
-                    e[j] = (1 if i < (1<<j) else 0)
-            vertices.append(e)
-        self.edge_signs = vertices
-        return vertices
-    
-    def comp_edge_signs(self):
-        ## Algorithm due to Shumakovitch
-        #Make sure edge_signs is initialized
-        if self.edge_signs.is_fully_changed():
-            return self.edge_signs
-        n = self.d
-        for delta in range(self.d):
-            for base in range(1<<delta):
-                self.edge_signs[base,delta] = 1
-        for v,i,j in self.squares:
-            self.edge_signs[v + (1<<j),i] = -self.edge_signs[v,i] * self.square_sign(v,i,j)
-        return self.edge_signs
-    
-    def get_edge_sign(self,edge):
-        return self.comp_edge_signs()[edge[0],edge[1]]
-        
+
     def zero_smoothing(self,crossing):
         assert (len(crossing) == 4)
         return (crossing[0],crossing[1]),(crossing[2],crossing[3])
-    
+
     def one_smoothing(self,crossing):
         assert (len(crossing) == 4)
         return (crossing[1],crossing[2]),(crossing[3],crossing[0])
-    
+
     def sym_to_circles(self,sym):
         #Convert a list of segment attachments into full circles
         circles = []
@@ -322,7 +379,7 @@ class Braid:
                         break
             circles.append(circle)
         return circles
-    
+
     def get_res(self,v):
         assert (v < (1<<self.d))
         if self.res[v]:
@@ -339,8 +396,9 @@ class Braid:
             sym.append(a)
             sym.append(b)
         self.res[v] = self.sym_to_circles(sym)
+        self.res_len[v] = len(self.res[v])
         return self.res[v]
-    
+
     def get_res_len(self,v):
         assert (v < (1<<self.d))
         if self.res_len[v]:
@@ -350,86 +408,108 @@ class Braid:
             return self.res_len[v]
         self.res_len[v] = len(self.get_res(v))
         return self.res_len[v]
-        
-    def get_inv_v(self):
-        #return the vertex number for the invariant
-        #if not self.inv_vertex:
-        if self.inv_v < 0:
-            #vertex = []
-            v = 0
-            #for x in self.presentation:
-            #    if x > 0:
-            #        vertex.append(0)
-            #    else:
-            #        vertex.append(1)
-            for i in range(self.d):
-                if self.presentation[i] < 0:
-                    v += (1<<i)
-            self.inv_v = v
-        return self.inv_v
 
-    def edges_out(self,v):
-        #Returns the list of edges out of vertex 
-        #format: list of tuples (vertex,i)
-        #this is the edge between vertex and vertex + (1<<i)
-        i = 0
-        edges = []
-        for i in range(self.d):
-            if (v >> i) % 2 == 0:
-                edges.append((v,i))
-        return edges
+    def get_circle(self,re,segment):
+        resolution = self.get_res(re)
+        for i in range(len(resolution)):
+            if segment in resolution[i]:
+                return i
+        #Raise exception if here
 
-    def edges_in(self,v):
-        #Returns the lsit of edges in of vertex
-        #format: list of tuples (v,i)
-        #this is the edge between v and vertex 
-        #such that v + (1<<i) = vertex
-        i = 0
-        edges = []
-        for i in range(self.d):
-            if (v>>i) % 2 == 1:
-                edges.append((v - (1<<i),i))
-        return edges
 
-    def get_edges_out_of_inv(self):
-        if not self.edges_out_of_inv:
-            self.edges_out_of_inv = self.edges_out(self.get_inv_v())
-        return self.edges_out_of_inv
 
-    def get_edges_into_inv(self):
-        if not self.edges_into_inv:
-            self.edges_into_inv = self.edges_in(self.get_inv_v())
-        return self.edges_into_inv
-    
-    def str_v(self,v):
-        s = ""
-        for i in range (self.d):
-            s += str((v>>i)%2)
-        return s
-    
-    def explanation(self):
-        print("Braid:",self.presentation)
-        print("Vertices that map to cycle's vertex:")
-        edges_in = self.get_edges_into_inv()
-        for edge in edges_in:
-            print("  Vertex:", self.str_v(edge[0]),"del:",edge[1],
-                  "Resolution:",
-                  self.get_res(edge[0]))
-            print("  Map:")
-            self.print_map(self.edge_map(edge),edge)
-        if not edges_in:
-            print("    NONE")
-        print("The distinguished vertex:")
-        print("    Vertex:",self.str_v(self.get_inv_v()),
-              "Resolution:",self.get_res(self.get_inv_v()))
-        print("Vertices that the vertex maps to:")
-        edges_out = self.get_edges_out_of_inv()
-        for edge in edges_out:
-            print("  Vertex:", self.str_v(edge[0]+(1<<edge[1])),"del:",edge[1],
-                  "Resolution:",
-                  self.get_res(edge[0]+(1<<edge[1])))
-            print("  Map:")
-            self.print_map(self.edge_map(edge),edge)
+    #Map Computation
+
+    def comp_maps(self):
+        if self.maps.is_fully_changed():
+            return None
+        self.comp_edge_signs()
+        for edge in self.maps:
+            self.maps[edge] = self.edge_map(edge)
+
+    def comp_edge_signs(self):
+        ## Algorithm due to Shumakovitch
+        #Make sure edge_signs is initialized
+        if self.edge_signs.is_fully_changed():
+            return self.edge_signs
+        n = self.d
+        for delta in range(self.d):
+            for base in range(1<<delta):
+                self.edge_signs[base,delta] = 1
+        for v,i,j in self.squares:
+            self.edge_signs[v + (1<<j),i] = -self.edge_signs[v,i] * self.square_sign(v,i,j)
+        return self.edge_signs
+
+    def get_edge_sign(self,edge):
+        return self.comp_edge_signs()[edge[0],edge[1]]
+
+    def square_sign(self,v,i,j):
+        #Algorithm due to Shumakovitch
+        #Adapted to current set up
+        #The input should be a vertex and the indices of two arrow changing from 0 to 1
+        assert (self.v(v,i) == 0 and self.v(v,j) == 0 and i != j)
+        c00 = self.get_res_len(v)
+        c11 = self.get_res_len(v + (1<<i) + (1<<j))
+        if c00 < c11:
+            self.squares[v,i,j] = "Type A, increasing cycles"
+            return -1 #Type A
+        elif c11 < c00:
+            self.squares[v,i,j] = "Type C, decreasing cycles"
+            return 1  #Type C
+        pd = self.get_x_diagram()
+        t1 = pd[i][2]
+        h1 = pd[i][0]
+        t2 = pd[j][2]
+        h2 = pd[j][0]
+        r00 = self.get_res(v)
+        lct1 = self.get_circle(v,t1) #index of circle t1 is in
+        lch2 = self.get_circle(v,h2) #index of circle h2 is in
+
+        if (h1 in r00[lch2] and t2 in r00[lct1]) and (h1 not in r00[lct1]):
+            self.squares[v,i,j] = "Type A, same no., arrows point likewise"
+            return -1 #Type A
+        if h1 not in r00[lct1] or t2 not in r00[lch2]:
+            self.squares[v,i,j] = "Type C, same no., arrows point differently"
+            return 1  #Type C
+        assert(lct1 == lch2)
+        assert(h1 in r00[lct1] and t2 in r00[lct1])
+        #r01 = self.get_res(v00 + (1<<a2))
+        rct1 = self.get_circle(v + (1<<j),t1)
+        rct2 = self.get_circle(v + (1<<j),t2)
+        if rct1 == rct2:
+            self.squares[v,i,j] = "Type Y"
+            return 1  #Type Y
+        self.squares[v,i,j] = "Type X"
+        return -1     #Type X
+
+    def edge_map(self,edge):
+        assert (self.v(edge[0],edge[1]) == 0)
+        scir = self.get_res_len(edge[0])
+        next = edge[0] + (1<<edge[1])
+        if scir < self.get_res_len(next):
+            mp = self.split_map(edge) #TAG FIELD UPDATE
+            self.scalar_mult_algebra_map(self.get_edge_sign(edge),mp)
+            return mp
+        else:
+            vmap = [(self.get_circle(next,self.get_res(edge[0])[i][0]),fe.FE(1,self.char)) for i in range(scir)]
+            #print(vmap)
+            mp = self.induced_map(edge[0],vmap) #TAG FIELD UPDATE
+            self.scalar_mult_algebra_map(self.get_edge_sign(edge),mp)
+            return mp
+
+    def scalar_mult_algebra_map(self,scalar,mp):
+        for i in range(len(mp)):
+            for key in mp[i]:
+                mp[i][key] *= scalar
+        #not returned, stored in place in mp
+
+    def add_algebra_maps(self,map1,map2):
+        assert (len(map1) == len(map2))
+        zero = fe.FE(0,self.char)
+        for i in range(len(map2)):
+            for key in map2[i]:
+                map1[i][key] = map1[i].get(key,zero) + map2[i][key]
+        #not returned, stored in place in map1
 
     def induced_map(self,v,vmap):
         xd = self.get_res_len(v)
@@ -462,21 +542,7 @@ class Braid:
             if sign:
                 algebra_map[i][target] = algebra_map[i].get(target,zero) + p*sign
         return algebra_map
-    
-    def scalar_mult_algebra_map(self,scalar,mp):
-        for i in range(len(mp)):
-            for key in mp[i]:
-                mp[i][key] *= scalar
-        #not returned, stored in place in mp
-    
-    def add_algebra_maps(self,map1,map2):
-        assert (len(map1) == len(map2))
-        zero = fe.FE(0,self.char)
-        for i in range(len(map2)):
-            for key in map2[i]:
-                map1[i][key] = map1[i].get(key,zero) + map2[i][key]
-        #not returned, stored in place in map1
-    
+
     def split_map(self,edge):
         assert (self.v(edge[0],edge[1]) == 0)
         source = edge[0]
@@ -535,149 +601,93 @@ class Braid:
         #print(map0,map1)
         self.add_algebra_maps(map0,map1)
         return map0
-    
-    def get_circle(self,re,segment):
-        resolution = self.get_res(re)
-        for i in range(len(resolution)):
-            if segment in resolution[i]:
-                return i
-        #Raise exception if here
 
-    def square_sign(self,v,i,j):
-        #Algorithm due to Shumakovitch
-        #Adapted to current set up
-        #The input should be a vertex and the indices of two arrow changing from 0 to 1
-        assert (self.v(v,i) == 0 and self.v(v,j) == 0 and i != j)
-        c00 = self.get_res_len(v)
-        c11 = self.get_res_len(v + (1<<i) + (1<<j))
-        if c00 < c11:
-            self.squares[v,i,j] = "Type A, increasing cycles"
-            return -1 #Type A
-        elif c11 < c00:
-            self.squares[v,i,j] = "Type C, decreasing cycles"
-            return 1  #Type C
-        pd = self.get_x_diagram()
-        t1 = pd[i][2]
-        h1 = pd[i][0]
-        t2 = pd[j][2]
-        h2 = pd[j][0]
-        r00 = self.get_res(v)
-        lct1 = self.get_circle(v,t1) #index of circle t1 is in
-        lch2 = self.get_circle(v,h2) #index of circle h2 is in
 
-        if (h1 in r00[lch2] and t2 in r00[lct1]) and (h1 not in r00[lct1]):
-            self.squares[v,i,j] = "Type A, same no., arrows point likewise"
-            return -1 #Type A
-        if h1 not in r00[lct1] or t2 not in r00[lch2]:
-            self.squares[v,i,j] = "Type C, same no., arrows point differently"
-            return 1  #Type C
-        assert(lct1 == lch2)
-        assert(h1 in r00[lct1] and t2 in r00[lct1])
-        #r01 = self.get_res(v00 + (1<<a2))
-        rct1 = self.get_circle(v + (1<<j),t1)
-        rct2 = self.get_circle(v + (1<<j),t2)
-        if rct1 == rct2:
-            self.squares[v,i,j] = "Type Y"
-            return 1  #Type Y
-        self.squares[v,i,j] = "Type X"
-        return -1     #Type X
 
-    def edge_map(self,edge):
-        assert (self.v(edge[0],edge[1]) == 0)
-        scir = self.get_res_len(edge[0])
-        next = edge[0] + (1<<edge[1])
-        if scir < self.get_res_len(next):
-            mp = self.split_map(edge) #TAG FIELD UPDATE
-            self.scalar_mult_algebra_map(self.get_edge_sign(edge),mp)
-            return mp
-        else:
-            vmap = [(self.get_circle(next,self.get_res(edge[0])[i][0]),fe.FE(1,self.char)) for i in range(scir)]
-            #print(vmap)
-            mp = self.induced_map(edge[0],vmap) #TAG FIELD UPDATE
-            self.scalar_mult_algebra_map(self.get_edge_sign(edge),mp)
-            return mp
-    
-    def tex_braid(self):
-        print("\\begin{center}\\begin{tikzpicture}")
+    #Possibly Defunct Functions 
+    """ 
+    def get_edges_out_of_inv(self):
+        if not self.edges_out_of_inv:
+            self.edges_out_of_inv = self.edges_out(self.get_inv_v())
+        return self.edges_out_of_inv
+
+    def get_edges_into_inv(self):
+        if not self.edges_into_inv:
+            self.edges_into_inv = self.edges_in(self.get_inv_v())
+        return self.edges_into_inv
+
+    def edges(self):
+        #Check if edges_signs has already be initilized or computed
+        if self.edge_signs.is_fully_changed():
+            return self.edge_signs
+        n = self.d
+        vertices = []
+        for i in range(1<<n):
+            e = {}
+            for j in range(n):
+                if self.v(i,j) == 0:
+                    e[j] = (1 if i < (1<<j) else 0)
+            vertices.append(e)
+        self.edge_signs = vertices
+        return vertices
+
+    def explanation(self):
+        print("Braid:",self.presentation)
+        print("Vertices that map to cycle's vertex:")
+        edges_in = self.get_edges_into_inv()
+        for edge in edges_in:
+            print("  Vertex:", self.str_v(edge[0]),"del:",edge[1],
+                  "Resolution:",
+                  self.get_res(edge[0]))
+            print("  Map:")
+            self.print_map(self.edge_map(edge),edge)
+        if not edges_in:
+            print("    NONE")
+        print("The distinguished vertex:")
+        print("    Vertex:",self.str_v(self.get_inv_v()),
+              "Resolution:",self.get_res(self.get_inv_v()))
+        print("Vertices that the vertex maps to:")
+        edges_out = self.get_edges_out_of_inv()
+        for edge in edges_out:
+            print("  Vertex:", self.str_v(edge[0]+(1<<edge[1])),"del:",edge[1],
+                  "Resolution:",
+                  self.get_res(edge[0]+(1<<edge[1])))
+            print("  Map:")
+            self.print_map(self.edge_map(edge),edge)
+
+    def height(self,v):
+        r = 0 
+        while v:
+            r += v%2
+            v = v >> 1
+        return r
+
+    def edges_out(self,v):
+        #Returns the list of edges out of vertex 
+        #format: list of tuples (vertex,i)
+        #this is the edge between vertex and vertex + (1<<i)
         i = 0
-        for x in self.presentation:
-            if x > 0:
-                print("\t\\braidline{{{}}}{{{}}}{{0}}{{{}}}{{1}}".format(self.b,x,i))
-            else: 
-                print("\t\\braidline{{{}}}{{{}}}{{0}}{{{}}}{{0}}".format(self.b,-1*x,i))
-            i += 1
-        print("\end{tikzpicture}\end{center}")
-            
-    def print_map(self,algebra_map,edge):
-        print("  The source resolution, index 0..")
-        print("      ",self.get_res(edge[0]))
-        print("  The target resolution, index 0..")
-        print("      ",self.get_res(edge[0] + (1<<edge[1])),"\n")
-        for i in range(len(algebra_map)):
-            print("       ", self.str_v(i),"maps to")
-            for key in algebra_map[i]:
-                if algebra_map[i][key] == 0:
-                    print("             ZERO")                    
-                else:
-                    print("            ",self.str_v(key),"with factor",algebra_map[i][key])
-        print()
+        edges = []
+        for i in range(self.d):
+            if (v >> i) % 2 == 0:
+                edges.append((v,i))
+        return edges
 
-    def str_e(self,g,l):
-        s = ""
-        for  i in range(l):
-            s += str((g>>i)%2)
-        return s
-        
-    def tex_map(self,algebra_map,edge):
-        sv = edge[0]
-        sl = self.get_res_len(sv)
-        tv = edge[0] + (1<<edge[1])
-        tl = self.get_res_len(tv)
-        print("The source resolution:")
-        print("\\[",self.get_res(sv),"\\]\n")
-        print("The target resolution:")
-        print("\\[",self.get_res(tv),"\\]\n")
-        print("\\begin{center}\\begin{tabular}{|r|r|r|}\\hline")
-        print("Source&Target&Factor\\\\\\hline")
-        for i in range(len(algebra_map)):
-            print(self.str_e(i,sl),"&&\\\\")
-            for key in algebra_map[i]:
-                print("&",self.str_e(key,tl),"&",algebra_map[i][key],"\\\\")
-            print("\\hline")
-        print("\\end{tabular}\\end{center}")
+    def edges_in(self,v):
+        #Returns the lsit of edges in of vertex
+        #format: list of tuples (v,i)
+        #this is the edge between v and vertex 
+        #such that v + (1<<i) = vertex
+        i = 0
+        edges = []
+        for i in range(self.d):
+            if (v>>i) % 2 == 1:
+                edges.append((v - (1<<i),i))
+        return edges
+    """
 
-        
-    def texplanation(self,s = "", maps = True):
-        print("\\section{Braid: ",s,"$",self.presentation ,"$}\n")
-        self.tex_braid()
-        print("\nUngraded Euler Characterist: $",self.raw_euler_characteristic(),"$\n")
-        print("\n(Unreduced) Jones Polynomial: $\\hat{J}(L) = $\n\\[",self.print_Jones(),"\\]\n")
-        print("\\subsection*{The distinguished vertex}\n")
-        print("Vertex:",self.str_v(self.get_inv_v()))
-        print("\nThe distinguished vertex's resolution:")
-        print("\\[",self.get_res(self.get_inv_v()),"\\]")
-        print("The algebra element of the invariant is", "1"*self.b)
-        if maps:
-            #### Fix maps so correct number of 0s
-            print("\\subsection*{Vertices that map to the vertex}\n")
-            edges_in = self.get_edges_into_inv()
-            for edge in edges_in:
-                print("Vertex:", self.str_v(edge[0]),"resolving index:",edge[1])
-                print("\nMap:")
-                self.tex_map(self.edge_map(edge),edge)
-            if not edges_in:
-                print("NONE")
-            
-            print("\\subsection*{Vertices that the vertex maps to}\n")
-            edges_out = self.get_edges_out_of_inv()
-            for edge in edges_out:
-                print("Vertex:", self.str_v(edge[0]+(1<<edge[1])),"resolving index:",edge[1])
-                print("\nMap:")
-                self.tex_map(self.edge_map(edge),edge)
-            if not edges_out:
-                print("NONE")
-        #print("\\newpage\n")
-        
+
+
 
 def make_braid_list(file):
     ls = []
