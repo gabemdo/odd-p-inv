@@ -3,7 +3,7 @@ class EdgeStruct:
     def __init__(self,d,value = None):
         self.d = d
         self.default = value
-        self.e = [{j:value for j in range(self.d) if not i&(1<<j)} for i in range(1<<d)]
+        self.e = [{i:value for i in range(self.d) if not v&(1<<i)} for v in range(1<<d)]
         self.max_size = (1<<(d-1)) * d
 
     def str_v(self,v):
@@ -35,9 +35,9 @@ class EdgeStruct:
         return self[edge] != None
 
     def __iter__(self):
-        for i in range(1<<self.d):
-            for j in self.e[i]:
-                yield (i,j)
+        for v in range(1<<self.d):
+            for i in self.e[v]:
+                yield (v,i)
 
     def __len__(self):
         #update later to an attribute that is updated with different methods
@@ -85,7 +85,6 @@ class EdgeStruct:
             if self[edge] != 0:
                 return True
         return False
-
 
 
 

@@ -3,6 +3,7 @@ import fields as fe
 import edgestruct as es
 import squarestruct as ss
 import algebra as alg
+import column as col
 
 class Braid:
     # Some convetions:
@@ -63,8 +64,6 @@ class Braid:
                 n += 1
         return n
 
-    
-
     def v(self,v,i):
         return (v >> i) % 2
 
@@ -83,6 +82,7 @@ class Braid:
                 if self.presentation[i] < 0:
                     v += (1<<i)
             self.inv_v = v
+            self.inv_r = alg.height(v)
         return self.inv_v
 
 
@@ -108,7 +108,7 @@ class Braid:
         if self.nmin % 2 == 1:
             shift = 1
             for key in dims[0]:
-                dims[0][key] *= -1
+                dims[0][key] = dims[0][key] -1
         for i in range(1,len(dims)):
             for key in dims[i]:
                 dims[0][key] = dims[0].get(key,0) + ((-1) ** (i+shift))*dims[i][key]
@@ -181,6 +181,74 @@ class Braid:
                 for map in error_dict[(v,i,j)]:
                     s += self.str_v(map[0]) + "\\to" + self.str_v(map[1]) + ", "
                 print("({},{},{}) : $[{}]$\n\n".format(self.str_v(v),i,j,s))
+
+
+    #Check if Invariant is Zero
+
+    def make_column_dictionary(self,r,column):
+        #
+        rev_dict = {}
+        i = 0
+        column(r)
+        for col in column:
+            rev_dict[col] = i
+            i += 1
+        return i, rev_dict
+
+    def make_row_dictionary(self,r,row):
+        rev_dict = {}
+        i = 0
+        if r < self.d:
+            row(r+1)
+            for v,g in row:
+                rev_dict[(v,g)] = i
+                i += 1
+        return i, rev_dict
+
+    def make_matrix(self,r,column,row,augmented = False):
+        n, row_i = self.make_row_dictionary(r,row)
+        #print(n,row_i)
+        m, col_i = self.make_column_dictionary(r,column)
+        #print(m,col_i)
+        M = [[fe.FE(0,self.char) for _ in range(m)] for _ in range(n)]
+        column(r)
+        for v,g in column:
+            for i in range(self.d):
+                if self.v(v,i) == 0:
+                    u = v + (1<<i)
+                    for h in self.maps[v,i][g]:
+                        M[row_i[u,h]][col_i[v,g]] = self.maps[v,i][g][h]
+        if augmented:
+            inv_v = self.get_inv_v()
+            inv_g = (1<<self.get_res_len(inv_v))-1
+            for row in row_i:
+                if row == (inv_v, inv_g):
+                    M[row_i[row]].append(fe.FE(1,self.char))
+                else:
+                    M[row_i[row]].append(fe.FE(0,self.char))
+        return M
+
+    def inv_nonzero(self):
+        v = self.get_inv_v()
+        r = self.inv_r
+        self.comp_maps()
+        if r == 0:
+            print("\n\nThe Invariant is Non-ZERO: Zero Map\n")
+            return 0 
+        for i in range(1<<self.d):
+            if not self.res_len[v]:
+                self.get_res_len(v)
+        column = col.Row(self.d,self.res_len)
+        row = col.Row(self.d,self.res_len)
+        M = self.make_matrix(r-1,column,row,True)
+        #alg.print_mat(M)
+        if alg.dumb_row_reduce(M):
+            print("\n\nThe Invariant is Non-ZERO: Pivot in last column\n")
+        else:
+            print("\n\nThe Invariant is ZERO: All pivots before last column\n")
+        #alg.print_mat(M)
+        print("\n\n")
+        return 1
 
 
 
@@ -279,6 +347,9 @@ class Braid:
                 self.tex_map(self.edge_map(edge),edge)
             if not edges_out:
                 print("NONE")
+        if ddCheck:
+            self.check_dd()
+        self.inv_nonzero()
         #print("\\newpage\n")
 
     def tex_braid(self):
@@ -500,7 +571,7 @@ class Braid:
     def scalar_mult_algebra_map(self,scalar,mp):
         for i in range(len(mp)):
             for key in mp[i]:
-                mp[i][key] *= scalar
+                mp[i][key] = mp[i][key] * scalar
         #not returned, stored in place in mp
 
     def add_algebra_maps(self,map1,map2):
@@ -523,7 +594,7 @@ class Braid:
             for j in range(xd):
                 if (i>>j)%2 == 1:
                     ls.append(vmap[j][0])
-                    p *= vmap[j][1]
+                    p = p * vmap[j][1]
             sign = 1
             #signed sort ls
             for k in range(len(ls)):
@@ -724,7 +795,6 @@ def driver(fancy = False):
         if fancy:
             b = Braid(braid[1])
             b.texplanation(braid[0],False)
-            b.check_dd()
             #print(b.edge_signs)
             #for map in b.maps:
             #    print(map,b.maps[map],"\n\n")
@@ -734,7 +804,6 @@ def driver(fancy = False):
         else:
             b = Braid(braid)
             b.texplanation()
-            b.check_dd()
     print("\\end{document}")
 
 def test_driver():

@@ -3,8 +3,8 @@ _0 = fe.FE(0,3)
 _1 = fe.FE(1,3)
 _2 = fe.FE(2,3)
 
-A = [[_1,_2,_0,_2],[_2,_1,_1,_0],[_0,_0,_1,_0]]
-
+#A = [[_1,_2,_0,_2],[_2,_1,_1,_0],[_0,_0,_1,_0]]
+A = [[fe.FE(1,3),fe.FE(0,3),fe.FE(1,3)],[fe.FE(0,3),-fe.FE(1,3),fe.FE(0,3)],[-fe.FE(1,3),fe.FE(0,3),fe.FE(0,3)]]
 
 
 def change(M,row,col,d):
@@ -30,7 +30,8 @@ def div_row(M,row,val):
 def sub_row_mult(M,row,mrow,val):
     m = len(M[0])
     for col in range(m):
-        M[row][col] -= M[mrow][col] * val
+        print(col,M[row][col],M[mrow][col],val)
+        M[row][col] = M[row][col] - (M[mrow][col] * val)
 
 def dumb_row_reduce(M):
     n = len(M)
@@ -40,24 +41,23 @@ def dumb_row_reduce(M):
         for row in range(i,n):
             val = M[row][col]
             if val != _0:
+                print("\nPivot:({},{}) = {}".format(i,col,val))
                 print_mat(M)
-                print("\nswp",row,col,i,val)
-                swap_rows(M,row,i)
-                print_mat(M)
-                print("\ndiv",row,col,i,val)
-                div_row(M,i,val)
-                for row in range(i+1,n):
-                    val = M[row][col]
-                    if val != _0:
-                        print_mat(M)
-                        print("\nsub",row,col,i,val)
-                        sub_row_mult(M,row,i,val)
-                for row in range(i):
-                    val = M[row][col]
-                    if val != _0:
-                        print_mat(M)
-                        print("\nsum",row,col,i,val)
-                        sub_row_mult(M,row,i,val)
+                if row != i:
+                    print("\nSwap row {} and row {}".format(i,row))
+                    swap_rows(M,row,i)
+                    print_mat(M)
+                if val != val/val:
+                    print("\nDivide row {} by {}".format(i,val))
+                    div_row(M,i,val)
+                    print_mat(M)
+                for row in range(n):
+                    if row != i:
+                        val = M[row][col]
+                        if val != _0:
+                            print("\nSubtract {} times row {} from row {}".format(val,i,row))                            
+                            sub_row_mult(M,row,i,val)
+                            print_mat(M)
                 i += 1
                 break
     print()

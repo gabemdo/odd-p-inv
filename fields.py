@@ -42,6 +42,9 @@ class FE:
             return a
         return self.gcd(b, a%b)
 
+    def nonzero(self):
+        return self.n != 0
+
     def __eq__(self,other):
         if self.c != other.c:
             return False
@@ -66,7 +69,9 @@ class FE:
     def __int__(self):
         if self.c != 0 or self.d == 1:
             return self.n
-        raise Error
+        if self.d == -1:
+            return -self.d
+        return self.d*1000
 
     def __bool__(self):
         return bool(self.n)
@@ -103,6 +108,7 @@ class FE:
         n, d = self.n * other.d + other.n * self.d, self.d * other.d
         g = self.gcd(n, d)
         self.n, self.d = n // g, d // g
+        assert (self.d > 0)
         return self
 
     def iaddb(self, other):
@@ -164,6 +170,7 @@ class FE:
             n, d = self.n * other.n, self.d * other.d
             g = self.gcd(n,d)
             self.n, self.d = n // g, d // g
+            assert (self.d > 0)
             return self
         assert (self.c == other.c)
         self.n = (self.n * other.n) % self.c
