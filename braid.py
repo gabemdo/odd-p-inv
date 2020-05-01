@@ -271,7 +271,6 @@ class Braid:
             TempM = [[fe.FE(M[i][j],char) for i in range(len(M))] for j in range(len(M[0]))]
             factor = alg.dumber_row_reduce(TempM)
             assert (isinstance(factor,int))
-            print("Assertion MADE",factor)
             if factor == 0:
                 if char == 0:
                     print("\n\nThe invariant is ZERO over $\\mathbb Q$.\n")
@@ -282,11 +281,11 @@ class Braid:
                     print("\n\nThere is an element $\\alpha$ such that $d\\alpha=\\alpha=\\psi$ over $\\mathbb Q$.\n")
                 else:
                     print("\n\nThere is an element $\\alpha$ such that $d\\alpha={}\\alpha=\\psi$ over $\\mathbb Z/{}$.\n".format(factor,char))
-        #result = alg.int_row_reduce(M)
-        #    if a:
-        #        print("\n\nThe invariant is ZERO over $\\mathbb Z$.\n")
-        #    else:
-        #        print("\n\nThere is an element $\\alpha$ such that $d\\alpha={}\\alpha=\\psi$ over $\\mathbb Z$.\n".format(b))
+        factor = alg.int_row_reduce(M)
+            if factor == 0:
+                print("\n\nThe invariant is ZERO over $\\mathbb Z$.\n")
+            else:
+                print("\n\nThere is an element $\\alpha$ such that $d\\alpha={}\\alpha=\\psi$ over $\\mathbb Z$.\n".format(factor))
 
 
 
