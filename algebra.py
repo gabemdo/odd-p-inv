@@ -14,6 +14,11 @@ def abs(x):
         return x
     return -x
 
+def gcd(a,b):
+    if b == 0:
+        return a
+    return gcd(b, a%b)
+
 def v(v,i):
     return (v >> i) % 2
 
@@ -50,6 +55,63 @@ def div_row(M,row,val):
     for col in range(m):
         M[row][col] /= val
 
+def reduce_row(M,row):
+    m = len(M[0])
+    d = 0
+    #Find smallest magnitude nonzero entry in row.
+    for i in range(m):
+        if M[row][i] != 0:
+            if d == 0:
+                d = abs(M[row][i])
+            else: 
+                d = min(d,abs(M[row][i]))
+    #If all zero, done.
+    if d == 0:
+        return d
+    #Find gcd of row.
+    for i in range(m):
+        d = gcd(M[row][i],d)
+    #Do nothing if gcd = 1
+    if d == 1:
+        return d
+    #Divide by gcd
+    for i in range(m):
+        M[row][i] //= d
+        return d
+
+def int_row_reduce(M):
+    n = len(M)
+    m = len(M[0])
+    pivot = 0
+    det = 1
+    for i in range(n):
+        if pivot >= m:
+            break
+        k = i
+        while M[i,pivot] == 0:
+            k += 1
+            if k >= n:
+                k = r
+                pivot += 1
+                if pivot >= m:
+                    break
+        if pivot < 0:
+            break
+        if k != i:
+            swap_rows(M,i,k)
+        if M[i][pivot] < 0:
+            div_row(M,i,-1)
+            det = -det
+        det *= M[i][pivot]
+        d = reduce_row(M,[i])
+        for k in range(n):
+            if i != k and M[k][pivot] != 0:
+                for j in range(n):
+                    M[k][j] = M[i][pivot]*M[k][j] - M[k][pivot]*M[i][j]
+                d = reduce_row(M,k)
+        pivot += 1
+    return det
+
 def sub_row_mult(M,row,p_row,val):
     m = len(M[0])
     for col in range(m):
@@ -84,7 +146,17 @@ def dumber_row_reduce(M):
                             sub_row_mult(M,row,i,val_)
                 i += 1
                 break
-    return last_pivot_col == m - 1 #Not in image
+    print("IN NEW ALG")
+    if last_pivot_col == m-1:
+        return 0# (False,0)
+    for i in range(n):
+        if M[i][m-1]:
+            for j in range(m-1):
+                if M[i][j]:
+                    return int(M[i][j]) #(True, int(M[i][j]))
+            return -3 #(True, "ERROR no invariant in col")
+    return -5 #(True, "ERROR no factor in row")
+
 
 def print_mat(M):
     n = len(M)

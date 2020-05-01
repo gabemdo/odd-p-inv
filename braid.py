@@ -129,7 +129,8 @@ class Braid:
         if not self.maps.is_fully_changed():
             self.comp_maps()
         p = [[] for _ in range(1<<self.d)]
-        zero = fe.FE(0,self.char)
+        #Possibly to be deprecated so field stuff is handled later.
+        zero = 0 #fe.FE(0,self.char)
         for v,i in self.maps:
             if alg.height(v) == r:
                 u = v + (1<<i)
@@ -210,7 +211,9 @@ class Braid:
         #print(n,row_i)
         m, col_i = self.make_column_dictionary(r,column)
         #print(m,col_i)
-        M = [[fe.FE(0,self.char) for _ in range(m)] for _ in range(n)]
+        #Possibly to be deprecated 
+        #M = [[fe.FE(0,self.char) for _ in range(m)] for _ in range(n)]
+        M = [[0 for _ in range(m)] for _ in range(n)]
         column(r)
         for v,g in column:
             for i in range(self.d):
@@ -223,9 +226,9 @@ class Braid:
             inv_g = (1<<self.get_res_len(inv_v))-1
             for row in row_i:
                 if row == (inv_v, inv_g):
-                    M[row_i[row]].append(fe.FE(1,self.char))
+                    M[row_i[row]].append(1) #fe.FE(1,self.char)) #possibly to be deprecated
                 else:
-                    M[row_i[row]].append(fe.FE(0,self.char))
+                    M[row_i[row]].append(0) #fe.FE(0,self.char)) #possibly to be deprecated
         return M
 
     def inv_nonzero(self):
@@ -250,6 +253,40 @@ class Braid:
         print("\n\n")
         return 1
 
+    def inv_factors(self):
+        v = self.get_inv_v()
+        r = self.inv_r
+        self.comp_maps()
+        if r == 0:
+            print("\n\nThe invariant Non-Zero, and in the lowest level homology group.\n")
+            return 0
+        for i in range(1<<self.d):
+            if not self.res_len[v]:
+                self.get_res_len(v)
+        column = col.Row(self.d,self.res_len)
+        row = col.Row(self.d,self.res_len)
+        M = self.make_matrix(r-1,column,row,True)
+        for char in [0,2,3,5]:
+            #copy matrix
+            TempM = [[fe.FE(M[i][j],char) for i in range(len(M))] for j in range(len(M[0]))]
+            factor = alg.dumber_row_reduce(TempM)
+            assert (isinstance(factor,int))
+            print("Assertion MADE",factor)
+            if factor == 0:
+                if char == 0:
+                    print("\n\nThe invariant is ZERO over $\\mathbb Q$.\n")
+                else:
+                    print("\n\nThe invariant is ZERO over $\\mathbb Z/{}$.\n".format(char))
+            else:
+                if char == 0:
+                    print("\n\nThere is an element $\\alpha$ such that $d\\alpha=\\alpha=\\psi$ over $\\mathbb Q$.\n")
+                else:
+                    print("\n\nThere is an element $\\alpha$ such that $d\\alpha={}\\alpha=\\psi$ over $\\mathbb Z/{}$.\n".format(factor,char))
+        #result = alg.int_row_reduce(M)
+        #    if a:
+        #        print("\n\nThe invariant is ZERO over $\\mathbb Z$.\n")
+        #    else:
+        #        print("\n\nThere is an element $\\alpha$ such that $d\\alpha={}\\alpha=\\psi$ over $\\mathbb Z$.\n".format(b))
 
 
 
@@ -349,7 +386,7 @@ class Braid:
                 print("NONE")
         if ddCheck:
             self.check_dd()
-        self.inv_nonzero()
+        self.inv_factors()
         #print("\\newpage\n")
 
     def tex_braid(self):
@@ -562,7 +599,9 @@ class Braid:
             self.scalar_mult_algebra_map(self.get_edge_sign(edge),mp)
             return mp
         else:
-            vmap = [(self.get_circle(next,self.get_res(edge[0])[i][0]),fe.FE(1,self.char)) for i in range(scir)]
+            #Possibly to be deprecated
+            #vmap = [(self.get_circle(next,self.get_res(edge[0])[i][0]),fe.FE(1,self.char)) for i in range(scir)]
+            vmap = [(self.get_circle(next,self.get_res(edge[0])[i][0]),1) for i in range(scir)]
             #print(vmap)
             mp = self.induced_map(edge[0],vmap) #TAG FIELD UPDATE
             self.scalar_mult_algebra_map(self.get_edge_sign(edge),mp)
@@ -576,21 +615,24 @@ class Braid:
 
     def add_algebra_maps(self,map1,map2):
         assert (len(map1) == len(map2))
-        zero = fe.FE(0,self.char)
+        #Possibly to be deprecated so field stuff is handled later
+        zero = 0 #fe.FE(0,self.char)
         for i in range(len(map2)):
             for key in map2[i]:
-                map1[i][key] = map1[i].get(key,zero) + map2[i][key]
+                map1[i][key] = map1[i].get(key,0) + map2[i][key]
         #not returned, stored in place in map1
 
     def induced_map(self,v,vmap):
         xd = self.get_res_len(v)
         assert (xd == len(vmap))
-        zero = fe.FE(0,self.char)
+        #Possibly to be deprecated so field stuff is handled later
+        zero = 0 #fe.FE(0,self.char)
         #print(vmap)
         algebra_map = [{} for _ in range(1<<xd)]
         for i in range(1<<xd):
             ls = []
-            p = fe.FE(1,self.char)
+            #Possibly to be deprecated so field stuff is handled later
+            p = 1 #fe.FE(1,self.char)
             for j in range(xd):
                 if (i>>j)%2 == 1:
                     ls.append(vmap[j][0])
@@ -634,12 +676,12 @@ class Braid:
                 #if not involved in the split
                 if a[0] not in source_res[i]:
                     if source_res[i][0] in target_res[j]:
-                        bmap[i] = (j,fe.FE(1,self.char))
+                        bmap[i] = (j,1) #fe.FE(1,self.char)) #possibly to be deprecated
                 #if involved in the split
                 else: 
                     #arrow head in target ?
                     if a[0] in target_res[j]:
-                        bmap[i] = (j,fe.FE(1,self.char))
+                        bmap[i] = (j,1) #fe.FE(1,self.char)) #poassibly to be deprecated
                         assert(d[0] == -1)
                         d[0] = j
         #print(bmap)
