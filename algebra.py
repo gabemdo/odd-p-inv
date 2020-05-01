@@ -83,7 +83,8 @@ def int_row_reduce(M):
     n = len(M)
     m = len(M[0])
     pivot = 0
-    det = 1
+    #det = 1
+    last_pivot_col = -1
     for i in range(n):
         if pivot >= m:
             break
@@ -94,23 +95,33 @@ def int_row_reduce(M):
                 k = r
                 pivot += 1
                 if pivot >= m:
+                    pivot = -1
                     break
         if pivot < 0:
             break
+        last_pivot_col = pivot
         if k != i:
             swap_rows(M,i,k)
         if M[i][pivot] < 0:
             div_row(M,i,-1)
             det = -det
-        det *= M[i][pivot]
+        #det *= M[i][pivot]
         d = reduce_row(M,[i])
         for k in range(n):
             if i != k and M[k][pivot] != 0:
-                for j in range(n):
+                for j in range(m):
                     M[k][j] = M[i][pivot]*M[k][j] - M[k][pivot]*M[i][j]
                 d = reduce_row(M,k)
         pivot += 1
-    return det
+    if last_pivot_col == m-1:
+        return 0
+    for i in range(n):
+        if M[i][m-1]:
+            for j in range(m-1):
+                if M[i][j]:
+                    return int(M[i][j])
+                return -3
+    return -5
 
 def sub_row_mult(M,row,p_row,val):
     m = len(M[0])
@@ -146,7 +157,6 @@ def dumber_row_reduce(M):
                             sub_row_mult(M,row,i,val_)
                 i += 1
                 break
-    print("IN NEW ALG")
     if last_pivot_col == m-1:
         return 0# (False,0)
     for i in range(n):
