@@ -79,48 +79,70 @@ def reduce_row(M,row):
         M[row][i] //= d
         return d
 
-def int_row_reduce(M):
+def int_row_reduce(M,col_labels,dim):
+    #M is an nxm matrix
     n = len(M)
     m = len(M[0])
-    pivot = 0
-    #det = 1
+    pivot_col = 0
     last_pivot_col = -1
-    for i in range(n):
-        if pivot >= m:
+    factor = 1
+    for pivot_row in range(n):
+        #check if we are beyond final column
+        if pivot_col >= m:
             break
-        k = i
-        while M[i,pivot] == 0:
+        #search for next non-zero entry in matrix below and right of last pivot, read downward by columns left to right.
+        k = pivot_row
+        while M[k][pivot_col] == 0:
             k += 1
+            #if we went beyond last row, go to next column
             if k >= n:
-                k = r
-                pivot += 1
-                if pivot >= m:
-                    pivot = -1
+                k = pivot_row
+                pivot_col += 1
+                #if we went beyond last col, break
+                if pivot_col >= m:
+                    pivot_col = -1
                     break
-        if pivot < 0:
+        #if we went beyond last col, second break
+        if pivot_col < 0:
             break
-        last_pivot_col = pivot
-        if k != i:
-            swap_rows(M,i,k)
-        if M[i][pivot] < 0:
-            div_row(M,i,-1)
-            det = -det
-        #det *= M[i][pivot]
-        d = reduce_row(M,[i])
+        #if here we eventually found a pivot. last_pivot_col is here now.
+        last_pivot_col = pivot_col
+        #if new pivot row is not in next row position swap
+        if k != pivot_row:
+            swap_rows(M,pivot_row,k)
+        #make pivot positive
+        if M[pivot_row][pivot_col] < 0:
+            for j in range(pivot_col,m):
+                M[pivot_row][j] = -M[pivot_row][j]
+        #make sure gcd of pivot row is 1
+        if pivot_row == m-1:
+            factor = M[pivot_row][pivot_col]
+        reduce_row(M,pivot_row)
+        #This is for reduced REF so we cancel all rows
         for k in range(n):
-            if i != k and M[k][pivot] != 0:
+            d = M[k][pivot_col]
+            pivot = M[pivot_row][pivot_col]
+            if k != pivot_row and d != 0:
                 for j in range(m):
-                    M[k][j] = M[i][pivot]*M[k][j] - M[k][pivot]*M[i][j]
-                d = reduce_row(M,k)
-        pivot += 1
+                    M[k][j] = pivot*M[k][j] - d*M[pivot_row][j]
+                #Make sure changed row has gcd 1
+                reduce_row(M,k)
+        pivot_col += 1
     if last_pivot_col == m-1:
-        return 0
+        return False, factor
+    assert last_pivot_col >= 0
     for i in range(n):
-        if M[i][m-1]:
+        if M[i][m-1] != 0:
+            print("The invariant over $\\mathbb Z$ is zero as the image:")
+            alpha = []
             for j in range(m-1):
                 if M[i][j]:
-                    return int(M[i][j])
-                return -3
+                    alpha.append((M[i][j],j))
+            print("\\[",' + '.join('{} ({},{}) '.format(a,str_v(col_labels[b][0],dim),str_g(col_labels[b][1])) for a,b in alpha),"=\\psi\\]")
+            for j in range(m-1):
+                if M[i][j] != 0:
+                    return True, int(M[i][j])
+            return -3
     return -5
 
 def sub_row_mult(M,row,p_row,val):
@@ -130,10 +152,11 @@ def sub_row_mult(M,row,p_row,val):
 
 
 
-def dumber_row_reduce(M):
+def dumber_row_reduce(M,col_labels,d):
     n = len(M)
     m = len(M[0])
     i = 0
+    factor = 1
     last_pivot_col = -1
     #check each column for a pivot
     for col in range(m):
@@ -148,6 +171,8 @@ def dumber_row_reduce(M):
                     swap_rows(M,row,i)
                 #change new pivot row value so pivot is 1
                 if val != val/val:
+                    if col == m-1:
+                        factor = val.n
                     div_row(M,i,val)
                 #kill off values after new pivot in the same column
                 for row in range(n):
@@ -158,15 +183,41 @@ def dumber_row_reduce(M):
                 i += 1
                 break
     if last_pivot_col == m-1:
-        return 0# (False,0)
+        return False, factor # (False,0)
     for i in range(n):
         if M[i][m-1]:
+            if M[0][0].c == 0:
+                print("The invariant over $\\mathbb Q$ is zero as the image:")
+            else:
+                print("The invariant over $\\mathbb Z/{}$ is zero as the inage:".format(M[0][0].c))
+            alpha = []
             for j in range(m-1):
                 if M[i][j]:
-                    return int(M[i][j]) #(True, int(M[i][j]))
+                    alpha.append((M[i][j],j))
+            print("\\[",' + '.join('{} ({},{}) '.format(a,str_v(col_labels[b][0],d),str_g(col_labels[b][1])) for a,b in alpha),"=\\psi\\]")
+            for j in range(m-1):
+                if M[i][j]:
+                    return True, int(M[i][j]) #(True, int(M[i][j]))
             return -3 #(True, "ERROR no invariant in col")
     return -5 #(True, "ERROR no factor in row")
 
+def str_v(v,d):
+    s = ""
+    for i in range(d):
+        s += '1' if v & (1<<i) else '0'
+    return s
+
+def str_g(g):
+    if g == 0:
+        return '1'
+    l = []
+    i = 1
+    while g:
+        if g%2 == 1:
+            l.append('v_{{{}}}'.format(i))
+        g = g>>1
+        i += 1
+    return '\\wedge '.join(l)
 
 def print_mat(M):
     n = len(M)

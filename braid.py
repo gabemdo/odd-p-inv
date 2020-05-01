@@ -210,6 +210,9 @@ class Braid:
         n, row_i = self.make_row_dictionary(r,row)
         #print(n,row_i)
         m, col_i = self.make_column_dictionary(r,column)
+        col_labels = [None for _ in range(m)]
+        for key in col_i:
+            col_labels[col_i[key]] = key
         #print(m,col_i)
         #Possibly to be deprecated 
         #M = [[fe.FE(0,self.char) for _ in range(m)] for _ in range(n)]
@@ -222,6 +225,7 @@ class Braid:
                     for h in self.maps[v,i][g]:
                         M[row_i[u,h]][col_i[v,g]] = self.maps[v,i][g][h]
         if augmented:
+            col_labels.append((0,0))
             inv_v = self.get_inv_v()
             inv_g = (1<<self.get_res_len(inv_v))-1
             for row in row_i:
@@ -229,7 +233,7 @@ class Braid:
                     M[row_i[row]].append(1) #fe.FE(1,self.char)) #possibly to be deprecated
                 else:
                     M[row_i[row]].append(0) #fe.FE(0,self.char)) #possibly to be deprecated
-        return M
+        return M, col_labels
 
     def inv_nonzero(self):
         v = self.get_inv_v()
@@ -243,7 +247,7 @@ class Braid:
                 self.get_res_len(v)
         column = col.Row(self.d,self.res_len)
         row = col.Row(self.d,self.res_len)
-        M = self.make_matrix(r-1,column,row,True)
+        M, _ = self.make_matrix(r-1,column,row,True)
         #alg.print_mat(M)
         if alg.dumb_row_reduce(M):
             print("\n\nThe Invariant is Non-ZERO: Pivot in last column\n")
@@ -265,28 +269,32 @@ class Braid:
                 self.get_res_len(v)
         column = col.Row(self.d,self.res_len)
         row = col.Row(self.d,self.res_len)
-        M = self.make_matrix(r-1,column,row,True)
+        M, col_labels = self.make_matrix(r-1,column,row,True)
         for char in [0,2,3,5]:
             #copy matrix
-            TempM = [[fe.FE(M[i][j],char) for i in range(len(M))] for j in range(len(M[0]))]
-            factor = alg.dumber_row_reduce(TempM)
+            TempM = [[fe.FE(M[i][j],char) for j in range(len(M[0]))] for i in range(len(M))]
+            assert len(col_labels) == len(TempM[0]), "{},{},{}".format(self.presentation,len(col_labels),len(TempM[0]))
+            in_image, factor = alg.dumber_row_reduce(TempM, col_labels,self.d)
             assert (isinstance(factor,int))
-            if factor == 0:
+            if not in_image:
                 if char == 0:
-                    print("\n\nThe invariant is ZERO over $\\mathbb Q$.\n")
+                    print("\n\nThe invariant is non-zero over $\\mathbb Q$, {}\n".format(factor))
                 else:
-                    print("\n\nThe invariant is ZERO over $\\mathbb Z/{}$.\n".format(char))
+                    print("\n\nThe invariant is non-zero over $\\mathbb Z/{}$, {}\n".format(char,factor))
+            """
             else:
                 if char == 0:
                     print("\n\nThere is an element $\\alpha$ such that $d\\alpha=\\alpha=\\psi$ over $\\mathbb Q$.\n")
                 else:
                     print("\n\nThere is an element $\\alpha$ such that $d\\alpha={}\\alpha=\\psi$ over $\\mathbb Z/{}$.\n".format(factor,char))
-        factor = alg.int_row_reduce(M)
-            if factor == 0:
-                print("\n\nThe invariant is ZERO over $\\mathbb Z$.\n")
-            else:
-                print("\n\nThere is an element $\\alpha$ such that $d\\alpha={}\\alpha=\\psi$ over $\\mathbb Z$.\n".format(factor))
-
+            """
+        in_image, factor = alg.int_row_reduce(M,col_labels,self.d)
+        if not in_image:
+            print("\n\nThe invariant is non-zero over $\\mathbb Z$, {}\n".format(factor))
+        """
+        else:
+            print("\n\nThere is an element $\\alpha$ such that $d\\alpha={}\\alpha=\\psi$ over $\\mathbb Z$.\n".format(factor))
+        """
 
 
     #TeX output functions
@@ -385,11 +393,12 @@ class Braid:
                 print("NONE")
         if ddCheck:
             self.check_dd()
+        print("\n\\noindent ",end="")
         self.inv_factors()
-        #print("\\newpage\n")
+        print("\\newpage\n")
 
     def tex_braid(self):
-        print("\\begin{center}\\begin{tikzpicture}")
+        print("\\begin{center}\\begin{tikzpicture}[scale = 0.4]")
         i = 0
         for x in self.presentation:
             if x > 0:
