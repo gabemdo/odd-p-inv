@@ -1,4 +1,4 @@
-
+import fields as fe
 
 def choose(n,k):
         a = b = 1
@@ -50,10 +50,41 @@ def swap_rows(M,i,j):
         for col in range(m):
             M[i][col],M[j][col] = M[j][col],M[i][col]
 
+def swap_cols(M,i,j):
+    if i != j:
+        n = len(M)
+        for row in range(n):
+            M[row][i],M[row][j] = M[row][j],M[row][i]
+
 def div_row(M,row,val):
     m = len(M[0])
     for col in range(m):
         M[row][col] /= val
+
+def div_col(M,col,val):
+    n = len(M)
+    for row in range(n):
+        M[row][col] = M[row][col]/val
+
+def mul_row(M,row,val):
+    n = len(M[0])
+    for mid in range(n):
+        M[row][mid] = M[row][mid]*val
+
+def sub_row_mult(M,row,p_row,val):
+    m = len(M[0])
+    for col in range(m):
+        M[row][col] = M[row][col] - (M[p_row][col] * val)
+
+def sub_col_mult(M,col,p_col,val):
+    n = len(M)
+    for row in range(n):
+        M[row][col] = M[row][col] - (M[row][p_col] * val)
+
+def anti_sub_row_mult(M,row,p_row,val):
+    n = len(M[0])
+    for col in range(n):
+        M[row][col] = M[row][col] + (M[p_row][col] * val)
 
 def reduce_row(M,row):
     m = len(M[0])
@@ -145,12 +176,185 @@ def int_row_reduce(M,col_labels,dim):
             return -3
     return -5
 
-def sub_row_mult(M,row,p_row,val):
+def i_row_reduce(M):
+    #M is an nxm matrix
+    n = len(M)
     m = len(M[0])
-    for col in range(m):
-        M[row][col] = M[row][col] - (M[p_row][col] * val)
+    pivot_col = 0
+    last_pivot_col = -1
+    factor = 1
+    for pivot_row in range(n):
+        #check if we are beyond final column
+        if pivot_col >= m:
+            break
+        #search for next non-zero entry in matrix below and right of last pivot, read downward by columns left to right.
+        k = pivot_row
+        last_pivot_col = pivot_col
+        while M[k][pivot_col] == 0:
+            k += 1
+            #if we went beyond last row, go to next column
+            if k >= n:
+                k = pivot_row
+                pivot_col += 1
+                #if we went beyond last col, break
+                if pivot_col >= m:
+                    pivot_col = -1
+                    break
+        #if we went beyond last col, second break
+        if pivot_col < 0:
+            break
+        #if here we eventually found a pivot. last_pivot_col is here now.
+        if pivot_col > last_pivot_col:
+            last_pivot_col = pivot_col
+        #if new pivot row is not in next row position swap
+        if k != pivot_row:
+            swap_rows(M,pivot_row,k)
+        #make pivot positive
+        if M[pivot_row][pivot_col] < 0:
+            for j in range(pivot_col,m):
+                M[pivot_row][j] = -M[pivot_row][j]
+        #make sure gcd of pivot row is 1
+        if pivot_row == m-1:
+            factor = M[pivot_row][pivot_col]
+        reduce_row(M,pivot_row)
+        #This is for reduced REF so we cancel all rows
+        for k in range(n):
+            d = M[k][pivot_col]
+            pivot = M[pivot_row][pivot_col]
+            if k != pivot_row and d != 0:
+                for j in range(m):
+                    M[k][j] = pivot*M[k][j] - d*M[pivot_row][j]
+                #Make sure changed row has gcd 1
+                reduce_row(M,k)
+        pivot_col += 1
+    if last_pivot_col == m-1:
+        return False, factor
+    assert last_pivot_col >= 0
+    for i in range(n):
+        if M[i][m-1] != 0:
+            for j in range(m-1):
+                if M[i][j] != 0:
+                    return True, int(M[i][j])
+            return -3
+    return -5
 
+def simultaneous_int_reduce(A,B,f,index):
+    n = len(A)
+    m = len(B)
+    k = len(B[0])
+    S = [[0 for _ in range(m)] for _ in range(m)]
+    S_ = [[0 for _ in range(m)] for _ in range(m)]
+    for i in range(m)
+        S[i][i] = 1
+        S_[i][i] = 1
+    pivot_row = 0
+    for pivot_mid in range(m):
+        if pivot_row >= m:
+            break
+        j = pivot_mid
+        while A[pivot_row][j] == 0:
+            j += 1
+            if j >= m:
+                j = pivot_mid
+                pivot_row += 1
+                if pivot_row >= k
+                    pivot_row = -1 
+                    break
+        if pivot_row < 0:
+            break
+        if j != pivot_mid:
+            swap_cols(A,pivot_mid,j)
+            swap_rows(B,pivot_mid,j)
+        if A[pivot_row][pivot_mid] < 0:
+            for l in range(pivot_row,j):
+                A[j][pivot_mid] = -A[j][pivot_mid]
+        d = reduce_col(A,pivot_mid)
+        if d != 1:
+            mul_row(B,pivot_mid, d)
+        for j in range(m):
+            d = A[pivot_mid][j] 
+            pivot = A[pivot_row][pivot_mid]
+            if j != pivot_col and d != 0:
+                for l in range(): 
+                    A[l][j] = pivot*A[l][j] - d*A[l][pivot_mid]
+        pivot_row += 1
+    return A,B     
+        
 
+def simultaneous_reduce(A,B,f,index):
+    n = len(A)
+    m = len(B)
+    k = len(B[0])
+    ### TESTING STUFF
+    char = A[0][0].c
+    S = [[fe.FE(0,char) for _ in range(m)] for _ in range(m)]
+    S_= [[fe.FE(0,char) for _ in range(m)] for _ in range(m)]
+    for i in range(m):
+        S[i][i].n = 1
+        S_[i][i].n = 1
+    #assert (m == len(A[0])), "These matrices do not compose together."
+    #first writing out the column reduction by transposition
+    i = 0
+    #check each column for a pivot
+    """
+    f(A)
+    print()
+    f(B)
+    print()
+    """
+    for row in range(n):
+        #look for pivot in altered rows only:
+        for mid in range(i,m):
+            val = A[row][mid]
+            #first non-zero value in current row in a col not already a pivot
+            if val.nonzero():
+                #move col into next pivot position
+                if mid != i:
+                    swap_cols(A,mid,i)
+                    swap_cols(S,mid,i) #TEST STUFF
+                    swap_rows(B,mid,i)
+                    swap_rows(S_,mid,i) #TEST STUFF
+                #change new pivot row value so pivot is 1
+                if val != val/val:
+                    div_col(A,i,val)
+                    div_col(S,i,val) #TEST STUFF
+                    #This is mul and not div right?
+                    mul_row(B,i,val)
+                    mul_row(S_,i,val) #TEST STUFF
+                #kill off values after new pivot in same column
+                for _mid in range(m):
+                    if _mid != i:
+                        _val = A[row][_mid]
+                        if _val.nonzero():
+                            sub_col_mult(A,_mid,i,_val) 
+                            sub_col_mult(S,_mid,i,_val) #TEST STUFF
+                            anti_sub_row_mult(B,i,_mid,_val)
+                            anti_sub_row_mult(S_,i,_mid,_val) #TEST STUFF
+                i += 1
+                break
+    #print("After reduction:")
+    f(A)
+    print()
+    f(B)
+    print()
+    f(S)
+    print()
+    f(S_)
+    print()
+    """
+    for i in range(m):
+        for j in range(m):
+            s = fe.FE(0,char)
+            for l in range(m):
+                s += S[i][l] * S_[l][j]
+            if i == j:
+                assert s.n == 1, "Inverse problem in product {},{}. Yields {}, not 1".format(i,j,s.n)
+            else:
+                assert s.n == 0, "Inverse problem in product {},{}. Yields {}, not 0".format(i,j,s.n)
+    """
+    transformed_inv = [S_[i][index] for i in range(m)]
+    return B, transformed_inv
+        #print_mat(A)
 
 def dumber_row_reduce(M,col_labels,d):
     n = len(M)
@@ -228,8 +432,8 @@ def print_mat(M):
         print("\\[ \\begin{array}{" + "r"*m + "}")
         for row in range(n):
             for col in range(m-1):
-                print(int(M[row][col]),end="&")
-            print(int(M[row][m-1]),"\\\\")
+                print(M[row][col],end="&")
+            print(M[row][m-1],"\\\\")
         print("\\end{array}\\]")
 
 def dumb_row_reduce(M):

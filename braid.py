@@ -199,15 +199,25 @@ class Braid:
     def make_row_dictionary(self,r,row):
         rev_dict = {}
         i = 0
-        if r < self.d:
-            row(r+1)
+        if r <= self.d and r >= 0:
+            row(r)
             for v,g in row:
                 rev_dict[(v,g)] = i
                 i += 1
         return i, rev_dict
 
+    def make_entry_dictionary(self,r,verticals):
+        rev_dict = {}
+        i = 0
+        if r <= self.d and r >= 0:
+            verticals(r)
+            for coord in verticals:
+                rev_dict[coord] = i
+                i += 1
+        return i, rev_dict
+
     def make_matrix(self,r,column,row,augmented = False):
-        n, row_i = self.make_row_dictionary(r,row)
+        n, row_i = self.make_row_dictionary(r+1,row)
         #print(n,row_i)
         m, col_i = self.make_column_dictionary(r,column)
         col_labels = [None for _ in range(m)]
@@ -234,6 +244,74 @@ class Braid:
                 else:
                     M[row_i[row]].append(0) #fe.FE(0,self.char)) #possibly to be deprecated
         return M, col_labels
+
+    def make_matrix_pair(self,r,verticals):
+        k, col_i = self.make_entry_dictionary(r-1,verticals)
+        m, mid_i = self.make_entry_dictionary(r,verticals)
+        n, row_i = self.make_entry_dictionary(r+1,verticals)
+        A = [[0 for _ in range(m)] for _ in range(n)]
+        B = [[0 for _ in range(k)] for _ in range(m)]
+        if r > 0:
+            verticals(r-1)
+            for v,g in verticals:
+                for i in range(self.d):
+                    if self.v(v,i) == 0:
+                        u = v + (1<<i)
+                        for h in self.maps[v,i][g]:
+                            B[mid_i[u,h]][col_i[v,g]] = self.maps[v,i][g][h]
+        inv_v = self.get_inv_v()
+        inv_g= (1<<self.get_res_len(inv_v))-1
+        for mid in mid_i:
+            if mid == (inv_v,inv_g):
+                inv_index = mid_i[mid]
+                B[mid_i[mid]].append(1)
+            else:
+                B[mid_i[mid]].append(0)
+        if r < self.d:
+            verticals(r)
+            for v,g in verticals:
+                for i in range(self.d):
+                    if self.v(v,i) == 0:
+                        u = v + (1<<i)
+                        for h in self.maps[v,i][g]:
+                            A[row_i[u,h]][mid_i[v,g]] = self.maps[v,i][g][h]
+        return A,B,k,m,n,inv_index
+
+    def comp_inv(self):
+        #prepare invariant vertex and height
+        v = self.get_inv_v()
+        r = self.inv_r
+
+        if r == 0:
+            print("\n\nThe invariant is non-zero and in the lowest level homology group.\n")
+            return 0
+        #prepare maps
+        self.comp_maps()
+        for i in range(1<<self.d):
+            if not self.res_len[v]:
+                assert False, "We should not get here because res_len should be set by comp_maps."
+                self.get_res_len(v)
+        #prepare matrices
+        verticals = col.Row(self.d,self.res_len)
+        A,B,k,m,n,inv_index = self.make_matrix_pair(r,verticals)
+        TempB = [[B[i][j] for j in range(k+1)] for i in range(m)]
+        in_image,factor = alg.i_row_reduce(TempB)
+        if in_image:
+            print("\n\nThe invariant is in the image of $d$ over $\\mathbb Z$, and is thus is $0$ over $\\mathbb Z,\\mathbb Z/p,$ and $\\mathbb Q$.\n")
+            return 0
+        for char in [0,2,3,5]:
+            TempA = [[fe.FE(A[i][j],char) for j in range(m)] for i in range(n)]
+            TempB = [[fe.FE(B[i][j],char) for j in range(k)] for i in range(m)]
+            S,psi = alg.simultaneous_reduce(TempA,TempB,alg.print_mat,inv_index)
+            assert len(S) == len(psi)
+            self.print_eq(S,psi)
+            for entry in psi:
+                print("${}$ ".format(entry),end="")
+            #if statements once it's returning something
+        #compute simultaneous reduction of integer stuff
+
+
+
 
     def inv_nonzero(self):
         v = self.get_inv_v()
@@ -344,6 +422,16 @@ class Braid:
             s += str((g>>i)%2)
         return s
 
+    def print_eq(self,S,psi):
+        print("\\[\\left[\\begin{{array}}{{{}}}".format("r"*len(S)))
+        for row in S:
+            print("&".join(map(str,row)),"\\\\")
+        print("\\end{array}\\right]x=")
+        print("\\left[\\begin{array}{r}")
+        for e in psi:
+            print(e,"\\\\",end="")
+        print("\\end{array}\\right]\\]")
+
     def tex_map(self,algebra_map,edge):
         sv = edge[0]
         sl = self.get_res_len(sv)
@@ -394,7 +482,7 @@ class Braid:
         if ddCheck:
             self.check_dd()
         print("\n\\noindent ",end="")
-        self.inv_factors()
+        self.comp_inv()
         print("\\newpage\n")
 
     def tex_braid(self):
