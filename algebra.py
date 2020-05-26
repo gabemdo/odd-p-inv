@@ -48,13 +48,13 @@ def swap_rows(M,i,j):
     if i != j:
         m = len(M[0])
         for col in range(m):
-            M[i][col],M[j][col] = M[j][col],M[i][col]
+            M[i][col], M[j][col] = M[j][col], M[i][col]
 
 def swap_cols(M,i,j):
     if i != j:
         n = len(M)
         for row in range(n):
-            M[row][i],M[row][j] = M[row][j],M[row][i]
+            M[row][i], M[row][j] = M[row][j], M[row][i]
 
 def div_row(M,row,val):
     m = len(M[0])
@@ -80,6 +80,16 @@ def sub_col_mult(M,col,p_col,val):
     n = len(M)
     for row in range(n):
         M[row][col] = M[row][col] - (M[row][p_col] * val)
+
+def add_col_mult(M,col,p_col,val):
+    n = len(M)
+    for row in range(n):
+        M[row][col] = M[row][col] + val * M[row][p_col]
+
+def add_row_mult(M,row,p_row,val):
+    m = len(M[0])
+    for col in range(m):
+        M[row][col] =  M[row][col] + val * M[p_row][col]
 
 def anti_sub_row_mult(M,row,p_row,val):
     n = len(M[0])
@@ -238,13 +248,237 @@ def i_row_reduce(M):
             return -3
     return -5
 
-def simultaneous_int_reduce(A,B,f,index):
+def mat_str(A):
+    s = ""
+    for row in A:
+        s += " ".join(["{:>3}".format(col) for col in row]) + "\n"
+    return s
+
+def print_mat(A):
+    print(mat_str(A))
+
+def sim_int_red(A,B):
+    return A, B 
+
+def homology(A,B):
+    print ("\n\n\nB:")
+    print_mat(B)
+    print("A:")
+    print_mat(A)
+    if not B:
+        if not A:
+            return "0"
+        #A = int_reduce(A)
+        last_pivot_col = -1
+        for i in range(min(len(A),len(A[0]))):
+            if A[i][i] != 0:
+                last_pivot_col = i
+        ker = len(A[0]) - last_pivot_col - 1
+        if ker:
+            return " + ".join(["Z" for _ in range(ker)])
+        return "0"
+        #homology of one, ie. dim of ker of A raised over Z
+    A,B = sim_int_red(A,B)
     n = len(A)
     m = len(B)
     k = len(B[0])
+    assert len(B) == len(A[0])
+    last_pivot_col = -1
+    for i in range(min(n,m)):
+        if A[i][i] != 0:
+            last_pivot_col = i
+    ker = m - last_pivot_col - 1
+    im  = [B[i][i] for i in range(min(m,k)) if B[i][i] != 0]
+    s = ""
+    for i in range(len(im)):
+        if im[i] == 1:
+            ker -= 1
+            im[i] = 0
+        else:
+            s += "Z_{} + ".format(im[i])
+            ker -= 1
+    s += "Z + "*ker
+    if s:
+        s = s[:-3]
+    else:
+        s = "0"
+    return s
+
+def functi(A,B):
+    n = len(A)
+    m = len(B)
+    assert m == len(A[0])
+    k = len(B[0])
+    pivot_row = 0
+    for pivot_mid in range(m):
+        for col in range(pivot_mid, m):
+            if A[pivot_mid][col] != 0:
+                if col != pivot_mid:
+                    swap_cols(A,pivot_mid,col)
+                    swap_rows(B,pivot_mid,col)
+                    for col in range(pivot_mid+1,m):
+                        pass
+                break
+
+def neg_row(A,row):
+    m = len(A[0])
+    for col in range(m):
+        A[row][col] = -A[row][col]
+
+def neg_col(A,col):
+    n = len(A)
+    for row in range(n):
+        A[row][col] = -A[row][col]
+
+def pivoted(A,pivot):
+    n = len(A)
+    m = len(A[0])
+    for row in range(pivot+1,n):
+        if A[row][pivot] != 0:
+            return False
+    for col in range(pivot+1,m):
+        if A[pivot][col] != 0:
+            return False
+    return True
+
+def next_loc(A,pivot):
+    n = len(A)
+    m = len(A[0])
+    for row in range(pivot+1,n):
+        for col in range(pivot+1,m):
+            if A[row][col] % A[pivot][pivot] != 0:
+                return (row,col)
+    return None
+
+def min_loc(A,pivot):
+    n = len(A)
+    m = len(A[0])
+    loc = [pivot,pivot]
+    min = float('inf')
+    for row in range(pivot,n):
+        for col in range(pivot,m):
+            if A[row][col] != 0 and (abs(A[row][col]) <= min):
+                loc = [row,col]
+                min = abs(A[row][col])
+    return loc
+
+def I(n):
+    return [[1 if i == j else 0 for i in range(n)] for j in range(n)]
+
+def smith_normal_form(A):
+    n = len(A)
+    m = len(A[0])
+    S = I(n)
+    T = I(m)
+    print_mat(A)
+    for pivot in range(min(n,m)):
+        while not pivoted(A,pivot):
+            row,col = min_loc(A,pivot)
+            swap_rows(A,pivot,row)
+            swap_rows(S,pivot,row)
+            swap_cols(A,pivot,col)
+            swap_cols(T,pivot,col)
+            for row in range(pivot+1,n):
+                if A[row][pivot] != 0:
+                    val = A[row][pivot] // A[pivot][pivot]
+                    add_row_mult(A,row,pivot,-val)
+                    add_row_mult(S,row,pivot,-val)
+            for col in range(pivot+1,m):
+                if A[pivot][col] != 0:
+                    val = A[pivot][col] // A[pivot][pivot]
+                    add_col_mult(A,col,pivot,-val)
+                    add_col_mult(T,col,pivot,-val)
+            if pivoted(A,pivot):
+                loc = next_loc(A,pivot)
+                if loc:
+                    row, _ = loc
+                    add_row_mult(A,row,pivot,1)
+                    add_row_mult(S,row,pivot,1)
+                else:
+                    if A[pivot][pivot] < 0:
+                        neg_row(A,pivot)
+                        neg_row(S,pivot)
+                        
+    print_mat(A)
+    print_mat(S)
+    print_mat(T)
+
+def simultaneous_smith(A,B):
+    n = len(A)
+    m = len(B)
+    k = len(B[0])
+    S = I(m)
+    S_ = I(m)
+    T = I(k)
+    print_mat(B)
+    for pivot in range(min(m,k)):
+        while not pivoted(B,pivot):
+            row,col = min_loc(B,pivot)
+            swap_rows(B,pivot,row)
+            swap_rows(S,pivot,row)
+            swap_cols(B,pivot,col)
+            swap_cols(T,pivot,col)
+            swap_rows(A,pivot,col)
+            swap_cols(S_,pivot,col)
+            for row in range(pivot+1,m):
+                if B[row][pivot] != 0:
+                    val = B[row][pivot] // B[pivot][pivot]
+                    add_row_mult(B,row,pivot,-val)
+                    add_row_mult(S,row,pivot,-val)
+                    add_col_mult(S_,row,pivot,val)
+            for col in range(pivot+1,k):
+                if B[pivot][col] != 0:
+                    val = B[pivot][col] // B[pivot][pivot]
+                    add_col_mult(B,col,pivot,-val)
+                    add_row_mult(A,col,pivot,val)
+                    add_col_mult(T,col,pivot,-val)
+            if pivoted(B,pivot):
+                loc = next_loc(B,pivot)
+                if loc:
+                    row, _ = loc
+                    add_row_mult(B,row,pivot,1)
+                    add_row_mult(S,row,pivot,1)
+                    add_col_mult(S_,row,pivot,-1)
+                else:
+                    if B[pivot][pivot] < 0:
+                        neg_row(B,pivot)
+                        neg_row(S,pivot)
+                        neg_col(S_,pivot)
+    print("B")                  
+    print_mat(B)
+    print("A")
+    print_mat(A)
+    print("S")
+    print_mat(S)
+    print("S^-1")
+    print_mat(S_)
+    print("SS^-1")
+    print_mat(mat_mult(S,S_))
+    print("T")
+    print_mat(T)
+
+def mat_mult(A,B):
+    n = len(A)
+    m = len(B)
+    k = len(B[0])
+    AB = [[0 for j in range(k)] for i in range(n)]
+    for row in range(n):
+        for col in range(k):
+            for j in range(m):
+                AB[row][col] += A[row][j]*B[j][col]
+    return AB
+
+def simultaneous_int_reduce(A,B,f,index):
+    n = len(A)
+    m = len(B)
+    if B:
+        k = len(B[0])
+    else:
+        k = 0
+    assert len(B) == len(A[0])
     S = [[0 for _ in range(m)] for _ in range(m)]
     S_ = [[0 for _ in range(m)] for _ in range(m)]
-    for i in range(m)
+    for i in range(m):
         S[i][i] = 1
         S_[i][i] = 1
     pivot_row = 0
@@ -257,7 +491,7 @@ def simultaneous_int_reduce(A,B,f,index):
             if j >= m:
                 j = pivot_mid
                 pivot_row += 1
-                if pivot_row >= k
+                if pivot_row >= k:
                     pivot_row = -1 
                     break
         if pivot_row < 0:
@@ -268,13 +502,13 @@ def simultaneous_int_reduce(A,B,f,index):
         if A[pivot_row][pivot_mid] < 0:
             for l in range(pivot_row,j):
                 A[j][pivot_mid] = -A[j][pivot_mid]
-        d = reduce_col(A,pivot_mid)
-        if d != 1:
-            mul_row(B,pivot_mid, d)
+        #d = reduce_col(A,pivot_mid)
+        #if d != 1:
+        #    mul_row(B,pivot_mid, d)
         for j in range(m):
             d = A[pivot_mid][j] 
             pivot = A[pivot_row][pivot_mid]
-            if j != pivot_col and d != 0:
+            if j != pivot_mid and d != 0:
                 for l in range(): 
                     A[l][j] = pivot*A[l][j] - d*A[l][pivot_mid]
         pivot_row += 1
@@ -423,7 +657,8 @@ def str_g(g):
         i += 1
     return '\\wedge '.join(l)
 
-def print_mat(M):
+"""
+def tex_mat(M):
     n = len(M)
     m = len(M[0])
     if m > 17:
@@ -467,6 +702,7 @@ def dumb_row_reduce(M):
     return last_pivot_col == m - 1
     print()
     print_mat(M)
+    """
 
 """
 def print_mat(M):
