@@ -249,6 +249,8 @@ class Braid:
         k, col_i = self.make_entry_dictionary(r-1,verticals)
         m, mid_i = self.make_entry_dictionary(r,verticals)
         n, row_i = self.make_entry_dictionary(r+1,verticals)
+        # In this convention C_(r-1) --B--> C_(r) --A--> C_(r+1) so that we have AB = 0
+        # A is an (n x m) matrix and B is an (m x k) matrix.
         A = [[0 for _ in range(m)] for _ in range(n)]
         B = [[0 for _ in range(k)] for _ in range(m)]
         if r > 0:
@@ -304,10 +306,24 @@ class Braid:
             TempB = [[fe.FE(B[i][j],char) for j in range(k)] for i in range(m)]
             S,psi = alg.simultaneous_reduce(TempA,TempB,alg.print_mat,inv_index)
             assert len(S) == len(psi)
-            self.print_eq(S,psi)
+            #self.print_eq(S,psi)
             for entry in psi:
                 print("${}$ ".format(entry),end="")
             #if statements once it's returning something
+        S,D,_ = alg.smith_normal_form(B)
+        d = []
+        i = 0
+        while i < min(m,k) and D[i][i]:
+            d.append(D[i][i])
+            i += 1
+        y = [1 if i == inv_index else 0 for i in range(m)]
+        mult = alg.solve_mat_mult(S,d,y) 
+        if mult == 0:
+            print("\n\n There is no $n\\in\\mathbb Z$ and $x$ such that $dx=n\\psi(L)$. Thus $\\psi(L)$ is non-torsion.")
+        elif mult == 1:
+            print("\n\n There is an $x$ such that $dx=\\psi(L)$. Thus $\\psi(L)=0$.")
+        else:
+            print("\n\n The smallest positive integer $n$ such that there is an $x$ such that $dx=n\\psi(L)$ is {}. Thus $\\psi(L)$ is torsion.".format(mult))
         #compute simultaneous reduction of integer stuff
 
 

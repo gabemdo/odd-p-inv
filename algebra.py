@@ -370,7 +370,7 @@ def smith_normal_form(A):
     m = len(A[0])
     S = I(n)
     T = I(m)
-    print_mat(A)
+    #print_mat(A)
     for pivot in range(min(n,m)):
         while not pivoted(A,pivot):
             row,col = min_loc(A,pivot)
@@ -398,18 +398,85 @@ def smith_normal_form(A):
                     if A[pivot][pivot] < 0:
                         neg_row(A,pivot)
                         neg_row(S,pivot)
-                        
-    print_mat(A)
-    print_mat(S)
-    print_mat(T)
+    return S,A,T        
+    #print_mat(A)
+    #print_mat(S)
+    #print_mat(T)
+
+def solve_mat_eq(S,D,T,r,y):
+    #Solves Ax = y where SAT = D is the Smith normal form of A. and r is number of nonzero pivots of A
+    #A is m x k
+    m = len(D)
+    k = len(D[0])
+    #S is m x m
+    assert m == len(S)
+    #T is k x k
+    assert k == len(T)
+    #y is m x 1
+    assert m == len(y)
+    #x is k x 1
+    #Check Sy (m x 1) is 0 for i >= r (indexed from 0)
+    for i in range(r,m):
+        sum = 0
+        for j in range(m):
+            sum += S[i][j]*y[j]
+        if sum != 0:
+            return False
+    P = []
+    for i in range(r):
+        sum = 0
+        for j in range(m):
+            sum += S[i][j]*y[j]
+        if sum % D[i][i] != 0:
+            return False
+        P.append(sum//D[i][i])
+    print("Ax=y when x is a linear combination of:")
+    for i in range(r):
+        print(" + ".join(["[{ }]".format(e) for e in ([0 if i >= m else P[i]] + [T[i][j] for j in range(r,k)])]))
+    return True
+    #Compute ^Sy
+    #Check that d[i] = A[i][i] divides all in row [i] of Sy
+
+def solve_mat_mult(S,d,y):
+    #Finds smallest positive integer s such that Ax = sy has a solution
+    #If there is no such solution, returns 0
+    #Assumes SAT = D is the Smith normal form of A and r is the number of nonzero pivots of A
+    #D = diag(d_1,..,d_r,0,..,0)
+    #d = [d_1,..,d_r]
+    r = len(d)
+    #A is m x k, S is m x m, T is k x k
+    m = len(S)
+    #y is m x 1
+    assert m == len(y)
+    #Check Sy (m x 1) is 0 for i >= r (indexed from 0)
+    for i in range(r,m):
+        sum = 0
+        for j in range(m):
+            sum += S[i][j]*y[i]
+        if sum != 0:
+            return 0
+    s = 1
+    #we need for each i in range(r) that d[i]| s(Sy)[i]
+    for i in range(r):
+        assert d[i] != 0, "i = {}".format(i)
+        sum = 0
+        for j in range(m):
+            sum += S[i][j]*y[j]
+        if (s*sum) % d[i] != 0:
+            s *= (d[i]//gcd(s*sum,d[i]))
+    return abs(s)
+
 
 def simultaneous_smith(A,B):
     n = len(A)
     m = len(B)
     k = len(B[0])
-    S = I(m)
-    S_ = I(m)
-    T = I(k)
+    S = I(n)
+    S_ = I(n)
+    T = I(m)
+    print("A")
+    print_mat(A)
+    print("B")
     print_mat(B)
     for pivot in range(min(m,k)):
         while not pivoted(B,pivot):
@@ -419,18 +486,22 @@ def simultaneous_smith(A,B):
             swap_cols(B,pivot,col)
             swap_cols(T,pivot,col)
             swap_rows(A,pivot,col)
-            swap_cols(S_,pivot,col)
+            swap_cols(S_,pivot,row)
+            print("Swap, pivot = {}, other = {}".format(pivot,row))
+            print_pair(S,S_)
             for row in range(pivot+1,m):
                 if B[row][pivot] != 0:
                     val = B[row][pivot] // B[pivot][pivot]
                     add_row_mult(B,row,pivot,-val)
                     add_row_mult(S,row,pivot,-val)
-                    add_col_mult(S_,row,pivot,val)
+                    add_col_mult(S_,pivot,row,val)
+                    print("Add mult, pivot = {}, other= {}, val = {}".format(pivot,row,-val))
+                    print_pair(S,S_)
             for col in range(pivot+1,k):
                 if B[pivot][col] != 0:
                     val = B[pivot][col] // B[pivot][pivot]
                     add_col_mult(B,col,pivot,-val)
-                    add_row_mult(A,col,pivot,val)
+                    add_row_mult(A,pivot,col,val)
                     add_col_mult(T,col,pivot,-val)
             if pivoted(B,pivot):
                 loc = next_loc(B,pivot)
@@ -438,12 +509,16 @@ def simultaneous_smith(A,B):
                     row, _ = loc
                     add_row_mult(B,row,pivot,1)
                     add_row_mult(S,row,pivot,1)
-                    add_col_mult(S_,row,pivot,-1)
+                    add_col_mult(S_,pivot,row,-1)
+                    print("All mult pivoted, pivot = {}, other = {}, val = {}".format(pivot,row,1))
+                    print_pair(S,S_)
                 else:
                     if B[pivot][pivot] < 0:
                         neg_row(B,pivot)
                         neg_row(S,pivot)
                         neg_col(S_,pivot)
+                        print("Neg, pivot = {}".format(pivot))
+                        print_pair(S,S_)
     print("B")                  
     print_mat(B)
     print("A")
@@ -456,6 +531,14 @@ def simultaneous_smith(A,B):
     print_mat(mat_mult(S,S_))
     print("T")
     print_mat(T)
+
+def print_pair(A,B):
+    n = len(A)
+    assert n == len(B)
+    print("S " + " "*(len(A[0]))*3 + "S^-1")
+    for row in range(n):
+        print("".join(["{:>3}".format(col) for col in A[row]]) + "     " + "".join(["{:3}".format(col) for col in B[row]]))
+    print("")
 
 def mat_mult(A,B):
     n = len(A)
@@ -514,7 +597,6 @@ def simultaneous_int_reduce(A,B,f,index):
         pivot_row += 1
     return A,B     
         
-
 def simultaneous_reduce(A,B,f,index):
     n = len(A)
     m = len(B)
@@ -567,6 +649,7 @@ def simultaneous_reduce(A,B,f,index):
                 i += 1
                 break
     #print("After reduction:")
+    """
     f(A)
     print()
     f(B)
@@ -575,6 +658,7 @@ def simultaneous_reduce(A,B,f,index):
     print()
     f(S_)
     print()
+    """
     """
     for i in range(m):
         for j in range(m):
@@ -704,10 +788,9 @@ def dumb_row_reduce(M):
     print_mat(M)
     """
 
-"""
+
 def print_mat(M):
     for row in M:
         for col in row:
             print(int(col), end="  ")
         print()
-"""
