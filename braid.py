@@ -307,8 +307,8 @@ class Braid:
             S,psi = alg.simultaneous_reduce(TempA,TempB,alg.print_mat,inv_index)
             assert len(S) == len(psi)
             #self.print_eq(S,psi)
-            for entry in psi:
-                print("${}$ ".format(entry),end="")
+            #for entry in psi:
+            #    print("${}$ ".format(entry),end="")
             #if statements once it's returning something
         S,D,_ = alg.smith_normal_form(B)
         d = []
@@ -469,7 +469,7 @@ class Braid:
     def texplanation(self,s = "", maps = True, ddCheck = False):
         print("\\section{Braid: ",s,"$",self.presentation ,"$}\n")
         self.tex_braid()
-        print("\nUngraded Euler Characterist: $",self.raw_euler_characteristic(),"$\n")
+        print("\nUngraded Euler Characteristic: $",self.raw_euler_characteristic(),"$\n")
         print("\n(Unreduced) Jones Polynomial: $\\hat{J}(L) = $\n\\[",self.print_Jones(),"\\]\n")
         print("\\subsection*{The distinguished vertex}\n")
         print("Vertex:",self.str_v(self.get_inv_v()))
