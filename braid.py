@@ -285,7 +285,7 @@ class Braid:
         r = self.inv_r
 
         if r == 0:
-            print("\n\nThe invariant is non-zero and in the lowest level homology group.\n")
+            print("\n\nThe invariant is non-zero, non-torsion, indivisible, and in the lowest level homology group.\n")
             return 0
         #prepare maps
         self.comp_maps()
@@ -298,24 +298,44 @@ class Braid:
         A,B,k,m,n,inv_index = self.make_matrix_pair(r,verticals)
         TempB = [[B[i][j] for j in range(k+1)] for i in range(m)]
         in_image,factor = alg.i_row_reduce(TempB)
+        char_list = [0,2,3,5]
         if in_image:
             print("\n\nThe invariant is in the image of $d$ over $\\mathbb Z$, and is thus is $0$ over $\\mathbb Z,\\mathbb Z/p,$ and $\\mathbb Q$.\n")
-            return 0
-        for char in [0,2,3,5]:
+            char_list = [0]
+        for char in char_list:
             TempA = [[fe.FE(A[i][j],char) for j in range(m)] for i in range(n)]
             TempB = [[fe.FE(B[i][j],char) for j in range(k)] for i in range(m)]
-            S,psi = alg.simultaneous_reduce(TempA,TempB,alg.print_mat,inv_index)
-            assert len(S) == len(psi)
+            ker_A, im_B = alg.simultaneous_reduce(TempA,TempB)#,alg.print_mat,inv_index)
+            if char == 0:
+                print(ker_A,im_B)
+                print("\n\nThe homology at $r=0$ over $\\mathbb Q$ is $\\mathbb Q^{{{}}}$.".format(ker_A - im_B))
+                ker = ker_A
+            else:
+                print(ker_A,im_B)
+                print("\n\nThe homology at $r=0$ over $\\mathbb Z/{}$ has rank ${}$.".format(char,ker_A - im_B))
+                assert ker == ker_A, "The ker over Q is not equal to the ker over Z/{}".format(char)
+            #assert len(S) == len(psi)
             #self.print_eq(S,psi)
             #for entry in psi:
             #    print("${}$ ".format(entry),end="")
             #if statements once it's returning something
-        S,D,_ = alg.smith_normal_form(B)
+        TempB = [[B[i][j] for j in range(k)] for i in range(m)]
+        S,D,_ = alg.smith_normal_form(TempB)
         d = []
         i = 0
+        t = 0
         while i < min(m,k) and D[i][i]:
             d.append(D[i][i])
+            if abs(D[i][i]) != 1:
+                t += 1
             i += 1
+        hom_list = ["\\mathbb Z/{}".format(d_i) for d_i in d if abs(d_i) != 1]
+        if ker - i != 0:
+            hom_list.append("\\mathbb Z^{{{}}}".format(ker - i)) 
+        if not hom_list:
+            hom_list = ["0"]
+        print("\n\n Raw info:\n\nd:{}\n\nker:{}\n\ni:{}".format(" ".join([str(di) for di in d]),ker,i))
+        print("\n\n $Kh'_0(L) = " + " \\oplus ".join(hom_list) + "$")
         y = [1 if i == inv_index else 0 for i in range(m)]
         mult = alg.solve_mat_mult(S,d,y) 
         if mult == 0:

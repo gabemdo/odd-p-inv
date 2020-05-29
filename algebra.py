@@ -365,7 +365,110 @@ def min_loc(A,pivot):
 def I(n):
     return [[1 if i == j else 0 for i in range(n)] for j in range(n)]
 
+def divisible(A,pivot):
+    n = len(A)
+    m = len(A[0])
+    for i in range(pivot+1,n):
+        for j in range(pivot+1,m):
+            if A[i][j] % A[pivot][pivot] != 0:
+                return (False,i,j,A[i][j]//A[pivot][pivot])
+    return (True,0,0,0)
+
+def smallest(v,ind):
+    alpha = min(abs(v[i]) for i in range(ind,len(v)) if v[i] != 0)
+    i = min(i for i in range(len(v)) if abs(v[i]) == alpha)
+    return (alpha,i)
+
+def min_nonzero_(A,pivot):
+    n = len(A)
+    m = len(A[0])
+    v = []
+    q = []
+    for row in range(n):
+        if row < pivot:
+            v.append(0)
+            q.append(0)
+        else:
+            a,b = smallest(A[row][:],pivot)
+            v.append(a)
+            q.append(b)
+    alpha, i = smallest(v,pivot)
+    return alpha, i, q[i]
+
+def min_nonzero(A,pivot):
+    m_row = m_col = pivot
+    c_min = float('inf')
+    for row in range(pivot):
+        for col in range(pivot):
+            if abs(A[row][col]) < c_min:
+                m_row = row
+                m_col = col
+    return m_row, m_col
+
+def completely_pivoted(A,pivot):
+    n = len(A)
+    m = len(A[0])
+    for row in range(pivot+1,n):
+        for col in range(pivot+1,m):
+            if A[row][col] != 0:
+                return False
+    return True
+
 def smith_normal_form(A):
+    n = len(A)
+    m = len(A[0])
+    S = I(n)
+    T = I(m)
+    t = -1
+    pivot = -1
+    while not completely_pivoted(A,pivot):
+        pivot += 1
+        while True:
+            #print_mat(A)
+            #print()
+            row, col = min_loc(A,pivot)
+            swap_rows(A,pivot,row)
+            swap_rows(S,pivot,row)
+            swap_cols(A,pivot,col)
+            swap_cols(T,pivot,col)
+            for row in range(pivot+1,n):
+                if A[row][pivot] != 0:
+                    q = A[row][pivot]//A[pivot][pivot]
+                    add_row_mult(A,row,pivot,-q)
+                    add_row_mult(S,row,pivot,-q)
+            if [A[row][pivot] for row in range(pivot+1,n) if A[row][pivot] != 0]:
+                continue
+                assert False
+            for col in range(pivot+1,m):
+                if A[pivot][col] != 0:
+                    q = A[pivot][col]//A[pivot][pivot]
+                    add_col_mult(A,col,pivot,-q)
+                    add_col_mult(T,col,pivot,-q)
+            if [A[pivot][col] for col in range(pivot+1,m) if A[pivot][col] !=0]:
+                continue
+                assert False
+            div,row,col,q = divisible(A,pivot)
+            if div:
+                break
+                assert False
+            add_row_mult(A,row,pivot,1)
+            add_row_mult(S,row,pivot,1)
+            add_col_mult(A,col,pivot,-q)
+            add_col_mult(T,col,pivot,-q)
+        if A[pivot][pivot] < 0:
+            neg_row(A,pivot)
+            neg_row(S,pivot)
+        if A[pivot][pivot] == 1:
+            t += 1
+    print("S:")
+    tex_mat(S)
+    print("A:")
+    tex_mat(A)
+    print("T:")
+    tex_mat(T)
+    return S,A,T
+
+def _smith_normal_form(A):
     n = len(A)
     m = len(A[0])
     S = I(n)
@@ -398,6 +501,12 @@ def smith_normal_form(A):
                     if A[pivot][pivot] < 0:
                         neg_row(A,pivot)
                         neg_row(S,pivot)
+    print("S:")
+    tex_mat(S)
+    print("A:")
+    tex_mat(A)
+    print("T:")
+    tex_mat(T)
     return S,A,T        
     #print_mat(A)
     #print_mat(S)
@@ -430,12 +539,29 @@ def solve_mat_eq(S,D,T,r,y):
         if sum % D[i][i] != 0:
             return False
         P.append(sum//D[i][i])
-    print("Ax=y when x is a linear combination of:")
+    #print("P=D^-1 ^Sy=",P)
+    #print("r=",r)
+    T_ = []
     for i in range(r):
-        print(" + ".join(["[{ }]".format(e) for e in ([0 if i >= m else P[i]] + [T[i][j] for j in range(r,k)])]))
+        sum = 0
+        for j in range(k):
+            sum += T[i][j]*P[j]
+        T_.append(sum)
+    #print("^T=",T_)
+    #print("Ax=y when x is a linear combination of:")
+    for i in range(r):
+        l = [0 if i >= r else T_[i]] 
+        l += [T[i][j] for j in range(r,k)]
+        s = "  ".join(["[{:>2}]".format(e) for e in l])
+        #
+
+        print(s)
     return True
     #Compute ^Sy
     #Check that d[i] = A[i][i] divides all in row [i] of Sy
+
+def solve_mat_eq_gcd(S,T,d,y):
+    pass
 
 def solve_mat_mult(S,d,y):
     #Finds smallest positive integer s such that Ax = sy has a solution
@@ -452,8 +578,9 @@ def solve_mat_mult(S,d,y):
     for i in range(r,m):
         sum = 0
         for j in range(m):
-            sum += S[i][j]*y[i]
+            sum += S[i][j]*y[j]
         if sum != 0:
+            #print(i,sum)
             return 0
     s = 1
     #we need for each i in range(r) that d[i]| s(Sy)[i]
@@ -462,7 +589,9 @@ def solve_mat_mult(S,d,y):
         sum = 0
         for j in range(m):
             sum += S[i][j]*y[j]
+        #print("i={}, s={}, sum={}, d[i]={},(s*sum)%d[i]={}".format(i,s,sum,d[i],(s*sum)%d[i]))
         if (s*sum) % d[i] != 0:
+            #print(s,sum,d[i])
             s *= (d[i]//gcd(s*sum,d[i]))
     return abs(s)
 
@@ -597,17 +726,22 @@ def simultaneous_int_reduce(A,B,f,index):
         pivot_row += 1
     return A,B     
         
-def simultaneous_reduce(A,B,f,index):
+def simultaneous_reduce(A,B):#    ,f,index):
+    # Convention:  C_(i-1) -- B --> C_i -- A --> C_(i+1), so AB = 0
+    # Dimensions:     k     (mxk)    m   (nxm)      n        (nxk)
     n = len(A)
     m = len(B)
+    #assert len(A[0]) == m + 1
     k = len(B[0])
+    tex_mat(A)
+    tex_mat(B)
     ### TESTING STUFF
-    char = A[0][0].c
-    S = [[fe.FE(0,char) for _ in range(m)] for _ in range(m)]
-    S_= [[fe.FE(0,char) for _ in range(m)] for _ in range(m)]
-    for i in range(m):
-        S[i][i].n = 1
-        S_[i][i].n = 1
+    ##char = A[0][0].c
+    ##S = [[fe.FE(0,char) for _ in range(m)] for _ in range(m)]
+    ##S_= [[fe.FE(0,char) for _ in range(m)] for _ in range(m)]
+    ##for i in range(m):
+    ##    S[i][i].n = 1
+    ##    S_[i][i].n = 1
     #assert (m == len(A[0])), "These matrices do not compose together."
     #first writing out the column reduction by transposition
     i = 0
@@ -627,27 +761,40 @@ def simultaneous_reduce(A,B,f,index):
                 #move col into next pivot position
                 if mid != i:
                     swap_cols(A,mid,i)
-                    swap_cols(S,mid,i) #TEST STUFF
+                    ##swap_cols(S,mid,i) #TEST STUFF
                     swap_rows(B,mid,i)
-                    swap_rows(S_,mid,i) #TEST STUFF
+                    ##swap_rows(S_,mid,i) #TEST STUFF
                 #change new pivot row value so pivot is 1
                 if val != val/val:
                     div_col(A,i,val)
-                    div_col(S,i,val) #TEST STUFF
+                    ##div_col(S,i,val) #TEST STUFF
                     #This is mul and not div right?
                     mul_row(B,i,val)
-                    mul_row(S_,i,val) #TEST STUFF
+                    ##mul_row(S_,i,val) #TEST STUFF
                 #kill off values after new pivot in same column
                 for _mid in range(m):
                     if _mid != i:
                         _val = A[row][_mid]
                         if _val.nonzero():
                             sub_col_mult(A,_mid,i,_val) 
-                            sub_col_mult(S,_mid,i,_val) #TEST STUFF
+                            ##sub_col_mult(S,_mid,i,_val) #TEST STUFF
                             anti_sub_row_mult(B,i,_mid,_val)
-                            anti_sub_row_mult(S_,i,_mid,_val) #TEST STUFF
+                            ##anti_sub_row_mult(S_,i,_mid,_val) #TEST STUFF
                 i += 1
                 break
+    ker_A = 0
+    for j in range(m):
+        zero_col = True
+        for i in range(n):
+            if A[i][j].nonzero():
+                zero_col = False
+                break
+        if zero_col:
+            ker_A += 1
+    im_B = 0
+    for row in B:
+        if [el for el in row if el.nonzero()]:
+            im_B += 1
     #print("After reduction:")
     """
     f(A)
@@ -670,8 +817,14 @@ def simultaneous_reduce(A,B,f,index):
             else:
                 assert s.n == 0, "Inverse problem in product {},{}. Yields {}, not 0".format(i,j,s.n)
     """
-    transformed_inv = [S_[i][index] for i in range(m)]
-    return B, transformed_inv
+    #transformed_inv = [S_[i][index] for i in range(m)]
+    try:
+        print("m = {}, n = {}, k = {}, ker = {}, im = {}".format(m,n,k,ker_A,im_B))
+    except:
+        pass
+    tex_mat(A)
+    tex_mat(B)
+    return ker_A, im_B
         #print_mat(A)
 
 def dumber_row_reduce(M,col_labels,d):
@@ -741,10 +894,14 @@ def str_g(g):
         i += 1
     return '\\wedge '.join(l)
 
-"""
+
 def tex_mat(M):
     n = len(M)
-    m = len(M[0])
+    m = 0
+    if n:
+        m = len(M[0])
+    else:
+        return 0
     if m > 17:
         print("LARGE")
     else:
@@ -755,6 +912,7 @@ def tex_mat(M):
             print(M[row][m-1],"\\\\")
         print("\\end{array}\\]")
 
+"""
 def dumb_row_reduce(M):
     n = len(M)
     m = len(M[0])
@@ -786,10 +944,10 @@ def dumb_row_reduce(M):
     return last_pivot_col == m - 1
     print()
     print_mat(M)
-    """
+"""
 
 
-def print_mat(M):
+def print_mat_(M):
     for row in M:
         for col in row:
             print(int(col), end="  ")
