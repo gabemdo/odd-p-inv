@@ -375,7 +375,7 @@ class Braid:
             torsion = ["\\mathbb Z^{}".format(betti)] + ["\\mathbb Z/{}".format(p) for p in tor]
             print("\n$KH_{{{}}}'(L;\\mathbb Z)={}$".format(r," \\oplus ".join(torsion)))
 
-    def comp_inv(self):
+    def comp_inv(self,print_output = True):
         #prepare invariant vertex and height
         v = self.get_inv_v()
         r = self.inv_r
@@ -450,31 +450,37 @@ class Braid:
         ###?????
         betti = ker - im
         #Print Rational Homology
-        print("\n$KH_0'(L;\\mathbb Q)={}$".format("\\mathbb Q^{{{}}}".format(ker-im) if (ker-im) else "0"))
+        if print_output:
+            print("\n$KH_0'(L;\\mathbb Q)={}$".format("\\mathbb Q^{{{}}}".format(ker-im) if (ker-im) else "0"))
         #Print Integer Homology
         betti_str = ["\\mathbb Z^{{{}}}".format(betti)] if betti else []
         homology_groups = betti_str + ["\\mathbb Z/{}".format(p) for p in tor]
         if not homology_groups:
             homology_groups = ["0"]
-        print("\n$KH_0'(L;\\mathbb Z)={}$".format(" \\oplus ".join(homology_groups)))
+        if print_output:
+            print("\n$KH_0'(L;\\mathbb Z)={}$".format(" \\oplus ".join(homology_groups)))
         
         #print("\n\n Raw info:\n\nd:{}\n\nker:{}\n\ni:{}".format(" ".join([str(di) for di in d]),ker,i))
         #print("\n\n $Kh'_0(L) = " + " \\oplus ".join(hom_list) + "$")
-        if self.inv_r == 0:
+        if print_output and self.inv_r == 0:
             print("\nThe invariant is non-zero, non-torsion, indivisible, and in the lowest level homology group.\n")
         mult = 0
         if k and m:
             y = [1 if i == inv_index else 0 for i in range(m)]
             mult = alg.solve_mat_mult(S,d,y) 
-        if mult == 0:
-            print("\nThere is no $x$ and no $n\\in\\mathbb Z$ such that $dx=n\\psi(L). ")
-            print("Thus $\\psi(L)$ is non-zero and non-torsion in $\\mathbb Z$ and $\\mathbb Q$. ")
-            #print("\n\n There is no $n\\in\\mathbb Z$ and $x$ such that $dx=n\\psi(L)$. Thus $\\psi(L)$ is non-torsion.")
-        elif mult == 1:
-            print("\nIn the chain complex $\\psi(L)$ is a boundary. Thus, in homology $\\psi(L)=0$ in all coefficients.")
-        else:
-            print("\nThe smallest positive integer $n$ such that there is an $x$ such that $dx=n\\psi(L)$ is {}. Thus $\\psi(L)$ is torsion.".format(mult))
-        #compute simultaneous reduction of integer stuff
+        if print_output:
+            if mult == 0:
+                print("\nThere is no $x$ and no $n\\in\\mathbb Z$ such that $dx=n\\psi(L)$. ")
+                print("Thus $\\psi(L)$ is non-zero and non-torsion in $\\mathbb Z$ and $\\mathbb Q$. ")
+                #print("\n\n There is no $n\\in\\mathbb Z$ and $x$ such that $dx=n\\psi(L)$. Thus $\\psi(L)$ is non-torsion.")
+            elif mult == 1:
+                print("\nIn the chain complex $\\psi(L)$ is a boundary. Thus, in homology $\\psi(L)=0$ in all coefficients.")
+            else:
+                print("\nThe smallest positive integer $n$ such that there is an $x$ such that $dx=n\\psi(L)$ is {}. Thus $\\psi(L)$ is torsion.".format(mult))
+            #compute simultaneous reduction of integer stuff
+        rational_homology = ker - im 
+        integer_homology = (betti,tor)
+        return mult, rational_homology, integer_homology
 
 
 
