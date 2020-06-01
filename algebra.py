@@ -59,7 +59,7 @@ def swap_cols(M,i,j):
 def div_row(M,row,val):
     m = len(M[0])
     for col in range(m):
-        M[row][col] /= val
+        M[row][col] = M[row][col]/val
 
 def div_col(M,col,val):
     n = len(M)
@@ -119,6 +119,40 @@ def reduce_row(M,row):
     for i in range(m):
         M[row][i] //= d
         return d
+
+def field_row_echelon(A):
+    n = len(A)
+    m = len(A[0])
+    pivot_row = 0
+    for col in range(m):
+        pivot_not_found = True
+        #find non-zero entry:
+        for row in range(pivot_row,n):
+            if A[row][col].nonzero():
+                if pivot_not_found:
+                    #print_mat_(A)
+                    #print()
+                    #print("Swap {} and {}".format(pivot_row,row))
+                    swap_rows(A,pivot_row,row)
+                    
+                    #print_mat_(A)
+                    #print()
+                    #print("Divide row {} by {}".format(pivot_row,A[pivot_row][col]))
+                    div_row(A,pivot_row,A[pivot_row][col])
+
+                    pivot_not_found = False
+                    pivot_row += 1
+                else:
+                    #print_mat_(A)
+                    #print()
+                    #print("Sub divide row {} with pivot {} and val {}".format(row,pivot_row,A[row][col]))
+                    sub_row_mult(A,row,pivot_row-1,A[row][col])
+    #REMOVE
+    #print_mat_(A)
+    #######
+    return pivot_row
+        #put into pivot position
+
 
 def int_row_reduce(M,col_labels,dim):
     #M is an nxm matrix
@@ -259,6 +293,46 @@ def print_mat(A):
 
 def sim_int_red(A,B):
     return A, B 
+
+def field_homology(A,B,not_field = False):
+    if not_field:
+        A = [[fe.FE(el,0) for el in row] for row in A]
+        B = [[fe.FE(el,0) for el in row] for row in B]
+    n = len(A)
+    m = len(B)
+    k = rank_A = rank_B = 0
+    if B:
+        k = len(B[0])
+    if n and m:
+        rank_A = field_row_echelon(A)
+    if m and k:
+        rank_B = field_row_echelon(B)
+    ker = m - rank_A
+    im = rank_B
+    H = ker - im
+    return H
+
+def integer_homology(A,B):
+    n = len(A)
+    m = len(B)
+    k = rank_A = rank_B = 0
+    tor = []
+    if B:
+        k = len(B[0])
+    elif A:
+        m = len(A[0])
+    if n and m:
+        A_Q = [[fe.FE(col,0) for col in row] for row in A]
+        rank_A = field_row_echelon(A_Q)
+    if m and k:
+        S,D,_ = smith_normal_form(B)
+        d = [D[i][i] for i in range(min(m,k)) if D[i][i] != 0]
+        rank_B = len(d)
+        tor = [i for i in d if (i != 1)]
+    ker = m - rank_A
+    ext = ker - rank_B
+    return ext, tor
+
 
 def homology(A,B):
     print ("\n\n\nB:")
@@ -460,12 +534,12 @@ def smith_normal_form(A):
             neg_row(S,pivot)
         if A[pivot][pivot] == 1:
             t += 1
-    print("S:")
-    tex_mat(S)
-    print("A:")
-    tex_mat(A)
-    print("T:")
-    tex_mat(T)
+    #print("S:")
+    #tex_mat(S)
+    #print("A:")
+    #tex_mat(A)
+    #print("T:")
+    #tex_mat(T)
     return S,A,T
 
 def _smith_normal_form(A):

@@ -245,13 +245,16 @@ class Braid:
                     M[row_i[row]].append(0) #fe.FE(0,self.char)) #possibly to be deprecated
         return M, col_labels
 
-    def make_matrix_pair(self,r,verticals):
+    def make_matrix_pair(self,r,verticals,augmented = True,field_A = False):
         k, col_i = self.make_entry_dictionary(r-1,verticals)
         m, mid_i = self.make_entry_dictionary(r,verticals)
         n, row_i = self.make_entry_dictionary(r+1,verticals)
         # In this convention C_(r-1) --B--> C_(r) --A--> C_(r+1) so that we have AB = 0
         # A is an (n x m) matrix and B is an (m x k) matrix.
-        A = [[0 for _ in range(m)] for _ in range(n)]
+        if field_A:
+            A = [[fe.FE(0,0) for _ in range(m)] for _ in range(n)]
+        else:
+            A = [[0 for _ in range(m)] for _ in range(n)]
         B = [[0 for _ in range(k)] for _ in range(m)]
         if r > 0:
             verticals(r-1)
@@ -263,12 +266,13 @@ class Braid:
                             B[mid_i[u,h]][col_i[v,g]] = self.maps[v,i][g][h]
         inv_v = self.get_inv_v()
         inv_g= (1<<self.get_res_len(inv_v))-1
-        for mid in mid_i:
-            if mid == (inv_v,inv_g):
-                inv_index = mid_i[mid]
-                B[mid_i[mid]].append(1)
-            else:
-                B[mid_i[mid]].append(0)
+        inv_index = mid_i[inv_v,inv_g]
+        if augmented:
+            for mid in mid_i:
+                if mid == (inv_v,inv_g):
+                    B[mid_i[mid]].append(1)
+                else:
+                    B[mid_i[mid]].append(0)
         if r < self.d:
             verticals(r)
             for v,g in verticals:
@@ -276,26 +280,125 @@ class Braid:
                     if self.v(v,i) == 0:
                         u = v + (1<<i)
                         for h in self.maps[v,i][g]:
-                            A[row_i[u,h]][mid_i[v,g]] = self.maps[v,i][g][h]
+                            value = self.maps[v,i][g][h]
+                            if field_A:
+                                A[row_i[u,h]][mid_i[v,g]] = fe.FE(value,0)
+                            else:
+                                A[row_i[u,h]][mid_i[v,g]] = value
         return A,B,k,m,n,inv_index
+
+    def make_matrix(self,r,verticals):
+        m, col_i = self.make_entry_dictionary(r,verticals)
+        n, row_i = self.make_entry_dictionary(r+1,verticals)
+        A = [[0 for _ in range(m)] for _ in range(n)]
+        verticals(r)
+        for v,g in verticals:
+            for i in range(self.d):
+                if self.v(v,i) == 0:
+                    u = v + (1<<i)
+                    for h in self.maps[v,i][g]:
+                        A[row_i[u,h]][col_i[v,g]] = self.maps[v,i][g][h]
+        return A
+
+    def comp_homology(self,char = -1,r = -1):
+        #prepare maps
+        self.comp_maps()
+        for i in range(1<<self.d):
+            if not self.res_len[i]:
+                assert False, "We should not get here because res_len should be set by comp_maps."
+                self.get_res_len(i)
+        verticals = col.Row(self.d,self.res_len)
+        if r == -1:
+            chain_maps = [None for _ in range(self.d)]
+            for r in range(self.d):
+                chain_maps[r] = self.make_matrix(r,verticals)
+                #alg.print_mat_(chain_maps[r])
+                #print()
+                ##### STUFF
+            #this adds the map from r=-1 and r=self.d the map []
+            chain_maps.append([])
+            for r in range(0,self.d+1):
+                if char != 1:
+                    B = []
+                    A = []
+                    if chain_maps[r-1]:
+                        B = [[fe.FE(col,0) for col in row] for row in chain_maps[r-1]]
+                    if chain_maps[r]:
+                        A = [[fe.FE(col,0) for col in row] for row in chain_maps[r]]
+                    H = alg.field_homology(A,B)
+                    if char == 0:
+                        print("\n$KH_{{{}}}'(L;\\mathbb Q)=\\mathbb Q^{{{}}}$".format(r,H))
+                    else:
+                        print("\n$KH_{{{}}}'(L;\\mathbb Z/{})=(\\mathbb Z/{})^{{{}}}$".format(r,H))
+                if abs(char) == 1:
+                    B = []
+                    A = []
+                    if chain_maps[r-1]:
+                        B = [row[:] for row in chain_maps[r-1]]
+                    if chain_maps[r]:
+                        A = [row[:] for row in chain_maps[r]]
+                    betti,tor = alg.integer_homology(A,B)
+                    torsion = ["\\mathbb Z^{{{}}}".format(betti)] + ["\\mathbb Z/{}".format(p) for p in tor]
+                    print("\n$KH_{{{}}}'(L;\\mathbb Z)={}$".format(r," \\oplus ".join(torsion)))
+            return 0
+        elif r == 0:
+            B_ = []
+            A_ = self.make_matrix(r,verticals)
+        elif r == self.d:
+            B_ = self.make_matrix(r-1,verticals)
+            A_ = []
+        elif 0 < r < self.d:
+            B_ = self.make_matrix(r-1,verticals)
+            A_ = self.make_matrix(r,verticals)
+        else:
+            assert False, "Your value of r is out of range. The raw grading must be between 0 and the number of crossings."
+        if char != 1:
+            B = []
+            if B_:
+                B = [[fe.FE(col,0) for col in row] for row in B_]
+            A = []
+            if A_:
+                A = [[fe.FE(col,0) for col in row] for row in A_]
+            H = alg.field_homology(A,B)
+            if char == 0:
+                print("\n$KH_{{{}}}'(L;\\mathbb Q)=\\mathbb Q^{{{}}}$".format(r,H))
+            else:
+                print("\n$KH_{{{}}}'(L;\\mathbb Z/{})=(\\mathbb Z/{})^{{{}}}$".format(r,H))
+        if abs(char) == 1:
+            B = []
+            if B_:
+                B = [row[:] for row in B_]
+            A = []
+            if A_:
+                A = [row[:] for row in A_]
+            betti,tor = alg.integer_homology(A,B)
+            torsion = ["\\mathbb Z^{}".format(betti)] + ["\\mathbb Z/{}".format(p) for p in tor]
+            print("\n$KH_{{{}}}'(L;\\mathbb Z)={}$".format(r," \\oplus ".join(torsion)))
 
     def comp_inv(self):
         #prepare invariant vertex and height
         v = self.get_inv_v()
         r = self.inv_r
-
-        if r == 0:
-            print("\n\nThe invariant is non-zero, non-torsion, indivisible, and in the lowest level homology group.\n")
-            return 0
         #prepare maps
         self.comp_maps()
         for i in range(1<<self.d):
-            if not self.res_len[v]:
+            if not self.res_len[i]:
                 assert False, "We should not get here because res_len should be set by comp_maps."
-                self.get_res_len(v)
+                self.get_res_len(i)
         #prepare matrices
         verticals = col.Row(self.d,self.res_len)
-        A,B,k,m,n,inv_index = self.make_matrix_pair(r,verticals)
+        A_Q,B,k,m,n,inv_index = self.make_matrix_pair(r,verticals,False,True)
+        assert len(B) == m
+        if m:
+            assert len(B[0]) == k
+        assert len(A_Q) == n
+        if n:
+            assert len(A_Q[0]) == m
+        if not (k and m):
+            B = []
+        if not (m and n):
+            A = []
+        """
         TempB = [[B[i][j] for j in range(k+1)] for i in range(m)]
         in_image,factor = alg.i_row_reduce(TempB)
         char_list = [0,2,3,5]
@@ -320,30 +423,57 @@ class Braid:
             #    print("${}$ ".format(entry),end="")
             #if statements once it's returning something
         TempB = [[B[i][j] for j in range(k)] for i in range(m)]
-        S,D,_ = alg.smith_normal_form(TempB)
+        """
+        #Compute Smith Normal Form of B
+        #Get the dim of the image, im
+        #Get the tor and torsion, list of torsion, length of tor
+        #Get the betti number, betti
         d = []
-        i = 0
-        t = 0
-        while i < min(m,k) and D[i][i]:
-            d.append(D[i][i])
-            if abs(D[i][i]) != 1:
-                t += 1
-            i += 1
-        hom_list = ["\\mathbb Z/{}".format(d_i) for d_i in d if abs(d_i) != 1]
-        if ker - i != 0:
-            hom_list.append("\\mathbb Z^{{{}}}".format(ker - i)) 
-        if not hom_list:
-            hom_list = ["0"]
-        print("\n\n Raw info:\n\nd:{}\n\nker:{}\n\ni:{}".format(" ".join([str(di) for di in d]),ker,i))
-        print("\n\n $Kh'_0(L) = " + " \\oplus ".join(hom_list) + "$")
-        y = [1 if i == inv_index else 0 for i in range(m)]
-        mult = alg.solve_mat_mult(S,d,y) 
+        tor = []
+        im = torsion = rank_A = 0
+        S = []
+        if k and m:
+            S,D,_ = alg.smith_normal_form(B)#TempB)
+            while im < min(m,k) and D[im][im]:
+                d.append(D[im][im])
+                if abs(D[im][im]) != 1:
+                    tor.append(D[im][im])
+                    torsion += 1
+                im += 1
+        nontor = im - torsion
+        ###############
+        #Compute the Field Row Echelon of A_Q
+        #Get the rank_A
+        if m and n:
+            rank_A = alg.field_row_echelon(A_Q)
+        ker = m - rank_A
+        ###?????
+        betti = ker - im
+        #Print Rational Homology
+        print("\n$KH_0'(L;\\mathbb Q)={}$".format("\\mathbb Q^{{{}}}".format(ker-im) if (ker-im) else "0"))
+        #Print Integer Homology
+        betti_str = ["\\mathbb Z^{{{}}}".format(betti)] if betti else []
+        homology_groups = betti_str + ["\\mathbb Z/{}".format(p) for p in tor]
+        if not homology_groups:
+            homology_groups = ["0"]
+        print("\n$KH_0'(L;\\mathbb Z)={}$".format(" \\oplus ".join(homology_groups)))
+        
+        #print("\n\n Raw info:\n\nd:{}\n\nker:{}\n\ni:{}".format(" ".join([str(di) for di in d]),ker,i))
+        #print("\n\n $Kh'_0(L) = " + " \\oplus ".join(hom_list) + "$")
+        if self.inv_r == 0:
+            print("\nThe invariant is non-zero, non-torsion, indivisible, and in the lowest level homology group.\n")
+        mult = 0
+        if k and m:
+            y = [1 if i == inv_index else 0 for i in range(m)]
+            mult = alg.solve_mat_mult(S,d,y) 
         if mult == 0:
-            print("\n\n There is no $n\\in\\mathbb Z$ and $x$ such that $dx=n\\psi(L)$. Thus $\\psi(L)$ is non-torsion.")
+            print("\nThere is no $x$ and no $n\\in\\mathbb Z$ such that $dx=n\\psi(L). ")
+            print("Thus $\\psi(L)$ is non-zero and non-torsion in $\\mathbb Z$ and $\\mathbb Q$. ")
+            #print("\n\n There is no $n\\in\\mathbb Z$ and $x$ such that $dx=n\\psi(L)$. Thus $\\psi(L)$ is non-torsion.")
         elif mult == 1:
-            print("\n\n There is an $x$ such that $dx=\\psi(L)$. Thus $\\psi(L)=0$.")
+            print("\nIn the chain complex $\\psi(L)$ is a boundary. Thus, in homology $\\psi(L)=0$ in all coefficients.")
         else:
-            print("\n\n The smallest positive integer $n$ such that there is an $x$ such that $dx=n\\psi(L)$ is {}. Thus $\\psi(L)$ is torsion.".format(mult))
+            print("\nThe smallest positive integer $n$ such that there is an $x$ such that $dx=n\\psi(L)$ is {}. Thus $\\psi(L)$ is torsion.".format(mult))
         #compute simultaneous reduction of integer stuff
 
 
@@ -487,18 +617,18 @@ class Braid:
         print("\\end{tabular}\\end{center}")
 
     def texplanation(self,s = "", maps = True, ddCheck = False):
-        print("\\section{Braid: ",s,"$",self.presentation ,"$}\n")
+        print("\\section{{Braid: {}, ${}$}}\n".format(s,self.presentation))
         self.tex_braid()
-        print("\nUngraded Euler Characteristic: $",self.raw_euler_characteristic(),"$\n")
-        print("\n(Unreduced) Jones Polynomial: $\\hat{J}(L) = $\n\\[",self.print_Jones(),"\\]\n")
-        print("\\subsection*{The distinguished vertex}\n")
+        print("\nUngraded Euler Characteristic: ${}$\n".format(self.raw_euler_characteristic()))
+        print("\n(Unreduced) Jones Polynomial: $\\hat J(L) = $\n\\[{}\\]\n".format(self.print_Jones()))
+        print("\n\n\n\\subsection*{The distinguished vertex}\n")
         print("Vertex:",self.str_v(self.get_inv_v()))
         print("\nThe distinguished vertex's resolution:")
-        print("\\[",self.get_res(self.get_inv_v()),"\\]")
-        print("The algebra element of the invariant is", "1"*self.b)
+        print("\\[{}\\]".format(self.get_res(self.get_inv_v())))
+        #print("The algebra element of the invariant is", "1"*self.b)
         if maps:
             #### Fix maps so correct number of 0s
-            print("\\subsection*{Vertices that map to the vertex}\n")
+            print("\n\n\n\\subsection*{Vertices that map to the vertex}\n")
             edges_in = self.get_edges_into_inv()
             for edge in edges_in:
                 print("Vertex:", self.str_v(edge[0]),"resolving index:",edge[1])
@@ -507,7 +637,7 @@ class Braid:
             if not edges_in:
                 print("NONE")
             
-            print("\\subsection*{Vertices that the vertex maps to}\n")
+            print("\n\n\n\\subsection*{Vertices that the vertex maps to}\n")
             edges_out = self.get_edges_out_of_inv()
             for edge in edges_out:
                 print("Vertex:", self.str_v(edge[0]+(1<<edge[1])),"resolving index:",edge[1])
@@ -517,7 +647,7 @@ class Braid:
                 print("NONE")
         if ddCheck:
             self.check_dd()
-        print("\n\\noindent ",end="")
+        print("\n\n\n\\subsection*{The Invariant and its Homology Group}\n")
         self.comp_inv()
         print("\\newpage\n")
 
