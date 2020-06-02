@@ -13,7 +13,7 @@ def driver():
     elif mult == 0:
         print("Inv NonZero")
     else:
-        print("Inv Torsion")
+        print("Inv Torsion: {}".format(mult))
 
 
 if __name__ == "__main__":
