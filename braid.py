@@ -300,7 +300,7 @@ class Braid:
                         A[row_i[u,h]][col_i[v,g]] = self.maps[v,i][g][h]
         return A
 
-    def comp_homology(self,char = -1,r = -1):
+    def comp_homology(self,char = -1,r = -1,tex = True):
         #prepare maps
         self.comp_maps()
         for i in range(1<<self.d):
@@ -326,10 +326,28 @@ class Braid:
                     if chain_maps[r]:
                         A = [[fe.FE(col,0) for col in row] for row in chain_maps[r]]
                     H = alg.field_homology(A,B)
-                    if char == 0:
-                        print("\n$KH_{{{}}}'(L;\\mathbb Q)=\\mathbb Q^{{{}}}$".format(r,H))
+                    if tex:
+                        if H:
+                            if char == 0:
+                                print("\n$KH_{{{}}}'(L;\\mathbb Q)=\\mathbb Q^{{{}}}$".format(r,H))
+                            else:
+                                print("\n$KH_{{{0}}}'(L;\\mathbb Z/{1})=(\\mathbb Z/{1})^{{{2}}}$".format(r,char,H))
+                        else:
+                            if char == 0:
+                                print("\n$KH_{{{}}}'(L;\\mathbb Q)=0$".format(r))
+                            else:
+                                print("\n$KH_{{{}}}'(L;\\mathbb Z/{}=0".format(r,char))
                     else:
-                        print("\n$KH_{{{}}}'(L;\\mathbb Z/{})=(\\mathbb Z/{})^{{{}}}$".format(r,H))
+                        if H:
+                            if char == 0:
+                                print("KH'_{}(L,Q) = Q^{}".format(r,H))
+                            else:
+                                print("KH'_{0}(L,Z/{1}) = (Z/{1})^{2}".format(r,char,H))
+                        else:
+                            if char == 0:
+                                print("KH'_{}(L,Q) = 0".format(r))
+                            else:
+                                print("KH'_{}(L,Z/{}) = 0".format(r,char))
                 if abs(char) == 1:
                     B = []
                     A = []
@@ -338,8 +356,14 @@ class Braid:
                     if chain_maps[r]:
                         A = [row[:] for row in chain_maps[r]]
                     betti,tor = alg.integer_homology(A,B)
-                    torsion = ["\\mathbb Z^{{{}}}".format(betti)] + ["\\mathbb Z/{}".format(p) for p in tor]
-                    print("\n$KH_{{{}}}'(L;\\mathbb Z)={}$".format(r," \\oplus ".join(torsion)))
+                    if tex:
+                        torsion = ["\\mathbb Z^{{{}}}".format(betti)] if betti else [] + ["\\mathbb Z/{}".format(p) for p in tor]
+                        print("\n$KH_{{{}}}'(L;\\mathbb Z)={}$".format(r," \\oplus ".join(torsion)))
+                    else:
+                        torsion = ["Z^{}".format(betti)] if betti else [] + ["Z/{}".format(p) for p in tor]
+                        if not torsion:
+                            torsion = ["0"]
+                        print("KH'_{}(L) = {}".format(r," + ".join(torsion)))
             return 0
         elif r == 0:
             B_ = []
@@ -360,10 +384,16 @@ class Braid:
             if A_:
                 A = [[fe.FE(col,0) for col in row] for row in A_]
             H = alg.field_homology(A,B)
-            if char == 0:
-                print("\n$KH_{{{}}}'(L;\\mathbb Q)=\\mathbb Q^{{{}}}$".format(r,H))
+            if tex:
+                if char == 0:
+                    print("\n$KH_{{{}}}'(L;\\mathbb Q)=\\mathbb Q^{{{}}}$".format(r,H))
+                else:
+                    print("\n$KH_{{{}}}'(L;\\mathbb Z/{})=(\\mathbb Z/{})^{{{}}}$".format(r,H))
             else:
-                print("\n$KH_{{{}}}'(L;\\mathbb Z/{})=(\\mathbb Z/{})^{{{}}}$".format(r,H))
+                if char == 0:
+                    print("KH'_{}(L;Q) = {}".format(r,"Q^"+str(H) if H else "0"))
+                else:
+                    print("KH'_{}(L;Z/{}) = {}".format(r,char,"(Z/{})^{}".format(char,H) if H else "0"))
         if abs(char) == 1:
             B = []
             if B_:
@@ -372,8 +402,14 @@ class Braid:
             if A_:
                 A = [row[:] for row in A_]
             betti,tor = alg.integer_homology(A,B)
-            torsion = ["\\mathbb Z^{}".format(betti)] + ["\\mathbb Z/{}".format(p) for p in tor]
-            print("\n$KH_{{{}}}'(L;\\mathbb Z)={}$".format(r," \\oplus ".join(torsion)))
+            if tex:
+                torsion = ["\\mathbb Z^{}".format(betti)] if betti else [] + ["\\mathbb Z/{}".format(p) for p in tor]
+                print("\n$KH_{{{}}}'(L;\\mathbb Z)={}$".format(r," \\oplus ".join(torsion)))
+            else:
+                torsion = ["Z^p".format(betti)] if betti else [] + ["Z/{}".format(p) for p in tor]
+                if not torsion:
+                    torsion = ["0"]
+                print("KH'_{}(L) = {}".format(r," + ".join(torsion)))
 
     def comp_inv(self,print_output = True):
         #prepare invariant vertex and height
