@@ -7,11 +7,11 @@ import column as col
 
 class Braid:
     # Some convetions:
-    # Implement x used for crossing index number in presentation
+    # Implement x used for crossing index number in the braid word
     # x ranges in self.d, the number of crossing or the dimention of the hypercube
-    # Implement s used for crossing strand number in presentation
+    # Implement s used for crossing strand number in the braid word
     # s ranges in self.b, the braid index or the number strands in the braid
-    #           | self.presentation[x] | = s
+    #           | self.word[x] | = s
     # height of vertex is number of 1s in binary, ranges 0 .. self.d
     # Vextex convention:
     ### vertices are numbered 0 .. (1<<self.d)-1
@@ -23,14 +23,14 @@ class Braid:
     ### inv : the invariant or associated vertices, heights, etc.
     ### res : resolution
 
-    def __init__(self,pres):
-        #The presentation of a braid is given as a list of non-zero integers
-        assert (len(pres) > 0)
-        self.presentation = pres
+    def __init__(self,braid_word):
+        #The braid word of a braid is given as a list of non-zero integers
+        assert (len(braid_word) > 0)
+        self.word = braid_word
         #The braid index is inferred. Perhaps it is better to take it as an argument.
-        self.b = self.comp_b(self.presentation)
+        self.b = self.comp_b(self.word)
         self.nmin = self.neg()
-        self.d = len(self.presentation)
+        self.d = len(self.word)
         self.x_diagram = []
         self.closure = []
         self.inv_r = -1
@@ -41,8 +41,20 @@ class Braid:
         self.res_len = [0 for _ in range(1 << self.d)]
         self.edge_signs = es.EdgeStruct(self.d,0)
         self.squares = ss.SquareStruct(self.d)
+        #TODO: split by grading
         self.maps = es.EdgeStruct(self.d)
+        #self.maps = {}
         self.char = 0
+        #TODO: add in storage for grading information
+        #Note: Number of components (hence dim V_alpha) is at most self.d, and thus between 1 and self.d
+        #Note: Exterior algebra alg-grading, k, is limited by dim V_alpha, and thus between 0 and dim V_alpha
+        #Note: Thus Q_0 = (dim V_alpha) - 2k is     -self.d <= Q_0 <= self.d
+        #Note: Shift S = n+ - 2* n- = self.d - 3 * self.nmin
+        #TODO: After testing compare to M_0 below
+        #Note: M_0 = "r" and thus between 0 and self.d 
+        #Note: And Q = Q_0 + S + M_0
+        #Hence: -self.d <= Q <= 2*self.d
+        #Storage convention: store in dictionary by key Q_0+M_0
         #print("Initialized")
 
 
@@ -50,6 +62,7 @@ class Braid:
     #Basic helper functions
 
     def comp_b(self,braid):
+        #return the width of the braid
         i = 0
         for s in braid:
             c = alg.abs(s)
@@ -58,13 +71,15 @@ class Braid:
         return i+1
 
     def neg(self):
+        #return n-
         n = 0
-        for x in self.presentation:
+        for x in self.word:
             if x < 0:
                 n += 1
         return n
 
     def v(self,v,i):
+        #return if resolution v is 0 or 1 at crossing i
         return (v >> i) % 2
 
     def get_inv_v(self):
@@ -73,13 +88,13 @@ class Braid:
         if self.inv_v < 0:
             #vertex = []
             v = 0
-            #for x in self.presentation:
+            #for x in self.word:
             #    if x > 0:
             #        vertex.append(0)
             #    else:
             #        vertex.append(1)
             for i in range(self.d):
-                if self.presentation[i] < 0:
+                if self.word[i] < 0:
                     v += (1<<i)
             self.inv_v = v
             self.inv_r = alg.height(v)
@@ -216,6 +231,38 @@ class Braid:
                 i += 1
         return i, rev_dict
 
+    def grade(self,v,g):
+        dimV = self.get_res_len(v)
+        k = alg.height(g)
+        r = alg.height(v)
+        #print("grading of {},{}, dimV= {}, k={},r={}. Grading = {}".format(v,g,dimV,k,r,dimV+r-2*k))
+        return dimV + r - 2*k
+
+    def make_graded_entry_dictionary(self,r,grade,verticals):
+        rev_dict = {}
+        i = 0
+        if r <= self.d and r >= 0:
+            verticals(r)
+            for v,g in verticals:
+                #print("v,g={},{}, r={}, grade={} =?= {}".format(v,g,r,grade,self.grade(v,g)))
+                if grade == self.grade(v,g):
+                    rev_dict[v,g] = i
+                    i += 1
+        return i, rev_dict
+
+    def make_graded_entry_dictionary_set(self,r,verticals):
+        rev_dict = {}
+        i = {}
+        if r <= self.d and r >= 0:
+            verticals(r)
+            for v,g in verticals:
+                grade = self.grade(v,g)
+                rev_dict[grade] = rev_dict.get(grade,{})
+                i[grade] = i.get(grade,0)
+                rev_dict[grade][v,g] = i[grade]
+                i[grade] += 1
+        return i, rev_dict
+
     def make_matrix(self,r,column,row,augmented = False):
         n, row_i = self.make_row_dictionary(r+1,row)
         #print(n,row_i)
@@ -244,6 +291,40 @@ class Braid:
                 else:
                     M[row_i[row]].append(0) #fe.FE(0,self.char)) #possibly to be deprecated
         return M, col_labels
+
+    def make_graded_matrix_pair(self,r,grade,verticals):
+        k, col_i = self.make_graded_entry_dictionary(r-1,grade,verticals)
+        m, mid_i = self.make_graded_entry_dictionary(r,grade,verticals)
+        n, row_i = self.make_graded_entry_dictionary(r+1,grade,verticals)
+        #Later: turn A to non-field option?
+        A = []
+        B = []
+        if r>0:
+            B = [[0 for _ in range(k)] for _ in range(m)]
+            verticals(r-1)
+            for v,g in verticals:
+                if self.grade(v,g) == grade:
+                    for i in range(self.d):
+                        if self.v(v,i) == 0:
+                            u = v + (1<<i)
+                            for h in self.maps[v,i][g]:
+                                B[mid_i[u,h]][col_i[v,g]] = self.maps[v,i][g][h]
+        inv_v = self.get_inv_v()
+        inv_g = (1<<self.get_res_len(inv_v))-1
+        #print(k,m,n,inv_v,inv_g,mid_i)
+        inv_index = mid_i[inv_v,inv_g]
+        if r < self.d:
+            A = [[fe.FE(0,0) for _ in range(m)] for _ in range(n)]
+            verticals(r)
+            for v,g in verticals:
+                if self.grade(v,g) == grade:
+                    for i in range(self.d):
+                        if self.v(v,i) == 0:
+                            u = v + (1<<i)
+                            for h in self.maps[v,i][g]:
+                                value = self.maps[v,i][g][h]
+                                A[row_i[u,h]][mid_i[v,g]] = fe.FE(value,0)
+        return A,B,k,m,n,inv_index
 
     def make_matrix_pair(self,r,verticals,augmented = True,field_A = False):
         k, col_i = self.make_entry_dictionary(r-1,verticals)
@@ -287,6 +368,59 @@ class Braid:
                                 A[row_i[u,h]][mid_i[v,g]] = value
         return A,B,k,m,n,inv_index
 
+    def make_graded_matrix(self,r,grade,verticals):
+        m, col_i = self.make_graded_entry_dictionary(r,grade,verticals)
+        n, row_i = self.make_graded_entry_dictionary(r+1,grade,verticals)
+        A = [[0 for _ in range(m)] for _ in range(n)]
+        verticals(r)
+        for v,g in verticals:
+            if self.grade(v,g) == grade:
+                for i in range(self.d):
+                    if self.v(v,i) == 0:
+                        u = v + (1<<i)
+                        for h in self.maps[v,i][g]:
+                            A[row_i[u,h]][col_i[v,g]] = self.maps[v,i][g][h]
+        return A
+
+    def make_graded_matrix_set(self,verticals):
+        #index of matrix set is the height
+        #dictionary keys are grading
+        #dictionary value is graded_matrix
+        matrix_set = [{} for _ in range(self.d+2)]
+        indices = [None for _ in range(self.d+1)]
+        indices[0], col_i = self.make_graded_entry_dictionary_set(0,verticals)
+        #print(0, col_i)
+        for grade in indices[0]:
+            matrix_set[-1][grade] = []
+        for r in range(self.d):
+            indices[r+1], row_i = self.make_graded_entry_dictionary_set(r+1,verticals)
+            verticals(r)
+            for grade in indices[r]:
+                matrix_set[r][grade] = [[0 for _ in range(indices[r][grade])] for _ in range(indices[r+1].get(grade,0))]
+            for v,g in verticals:
+                grade = self.grade(v,g)
+                for i in range(self.d):
+                    if self.v(v,i) == 0:
+                        u = v + (1<<i)
+                        for h in self.maps[v,i][g]:
+                            value = self.maps[v,i][g][h]
+                            matrix_set[r][grade][row_i[grade][u,h]][col_i[grade][v,g]] = value
+            #for grade in indices[r]:
+                #if not matrix_set[r][grade]:
+                    #print(matrix_set[r][grade])
+                    #print(col_i[grade])
+                    #matrix_set[r][grade] = [[0 for key in col_i[grade]]]
+            col_i = row_i
+            #print(r+1, col_i)
+        #print(indices[self.d])
+        #print(matrix_set[self.d])
+        #print(matrix_set[self.d])
+        #for grade in indices[self.d]:
+        #    print("GRADES:", grade,len(matrix_set))
+            #matrix_set[self.d][grade] = matrix_set[self.d].get(grade,[[0 for key in col_i[grade]]])
+        #print("Matrix set: ",matrix_set)
+        return indices, matrix_set
+
     def make_matrix(self,r,verticals):
         m, col_i = self.make_entry_dictionary(r,verticals)
         n, row_i = self.make_entry_dictionary(r+1,verticals)
@@ -299,6 +433,87 @@ class Braid:
                     for h in self.maps[v,i][g]:
                         A[row_i[u,h]][col_i[v,g]] = self.maps[v,i][g][h]
         return A
+
+    def comp_full_graded_homology(self):
+        self.comp_maps()
+        #Grading and Thin-ness stuff
+        shift = self.d - 3*self.nmin
+        diagonal = {}
+        sl = self.d - (2*self.nmin + self.b)   #the self-linking number
+        #Set up
+        verticals = col.Row(self.d,self.res_len)
+        indices, matrix_set = self.make_graded_matrix_set(verticals)
+        ##print(indices)
+        started = False
+        ended = False
+        zero_start = -1
+        for r in range(self.d+1):
+            ##print("RRRR:", r)
+            s = []
+            for grade in indices[r]:
+                if r > 0 and grade in matrix_set[r-1]:
+                    B = [row[:] for row in matrix_set[r-1][grade]]
+                else:
+                    B = []
+                if r < self.d and grade in matrix_set[r]:
+                    A = [row[:] for row in matrix_set[r].get(grade,[])]
+                else:
+                    A = []
+                ##print("\nHeight: {}; Grading: {}".format(r,grade))
+                ##print(B,"\n")
+                ##print(A)
+                k = 0 if r == 0 else indices[r-1].get(grade,0)
+                m = indices[r].get(grade,0)
+                n = 0 if r == self.d else indices[r+1].get(grade,0) 
+                ##print("k= {}, m={}, n= {}".format(k,m,n))
+                betti,tor = alg.integer_homology(A,B,k,m,n)
+                #print("\nBetti: {}; Torsion: {}".format(betti,tor))
+                #if tor and tor[0] == 3:
+                #    print(grade,r)
+                #    print(B,"\n")
+                #    print(A,"\n")
+                #    print(k,m,n)
+                groups = ["Z^{}".format(betti)] if betti else [] + ["Z/{}".format(p) for p in tor]
+                if groups:
+                    d = (grade+shift) - 2*(r- self.nmin)
+                    diagonal[d] = diagonal.get(d,0) + 1
+                    if len(groups) == 1:
+                        s.append("{}[{:>2}]".format(groups[0],grade+shift))
+                    else:
+                        s.append("({})[{:>2}]".format(" + ".join(groups),grade+shift))
+            if not s:
+                if started and not ended:
+                    ended = True
+                    zero_start = r
+                continue
+            elif ended:
+                ended = False
+                for i in range(zero_start,r):
+                    print("KH'_({:>2})(L) = 0".format(i-self.nmin))
+                r = -1
+            else:
+                started = True
+            print("KH'_({:>2})(L) = {}".format(r-self.nmin," + ".join(s)))
+        if len(diagonal) not in [0,2]:
+            max_width = 0
+            mode_width = -1
+            for width in diagonal:
+                if diagonal[width] > max_width:
+                    max_width = diagonal[width]
+                    mode_width = width
+            if diagonal.get(mode_width+2,0) > diagonal.get(mode_width-2,0):
+                sigma = mode_width+1
+            elif diagonal.get(mode_width+2,0) < diagonal.get(mode_width-2,0):
+                sigma = mode_width-1
+            else:
+                sigma = "No guess."
+            print("Wide knot, sigma = {}, sl = {}.\n".format(sigma, sl))
+        else:
+            sigma = 0
+            for width in diagonal:
+                sigma += width
+            sigma //= 2
+            print("Thin knot, sigma = {}, sl = {}.\n".format(sigma, sl))
 
     def comp_homology(self,char = -1,r = -1,tex = True):
         #prepare maps
@@ -317,7 +532,7 @@ class Braid:
                 ##### STUFF
             #this adds the map from r=-1 and r=self.d the map []
             chain_maps.append([])
-            for r in range(0,self.d+1):
+            for r in range(self.d+1):
                 if char != 1:
                     B = []
                     A = []
@@ -414,8 +629,13 @@ class Braid:
     def comp_inv(self,print_output = True):
         #prepare invariant vertex and height
         v = self.get_inv_v()
+        r = self.get_res_len(v)
+        g = (1<<r)-1
         r = self.inv_r
+        #print("Computing grading according to inv, v,g={},{}, r={}".format(v,g,r))
+        grade = self.grade(v,g)
         #prepare maps
+        #TODO DELTA: only prepare edge_signs and needed maps instead
         self.comp_maps()
         for i in range(1<<self.d):
             if not self.res_len[i]:
@@ -423,10 +643,13 @@ class Braid:
                 self.get_res_len(i)
         #prepare matrices
         verticals = col.Row(self.d,self.res_len)
-        A_Q,B,k,m,n,inv_index = self.make_matrix_pair(r,verticals,False,True)
-        assert len(B) == m
-        if m:
-            assert len(B[0]) == k
+        A_Q,B,k,m,n,inv_index = self.make_graded_matrix_pair(r,grade,verticals)#,False,True)
+        #print(A_Q)
+        #print(B)
+        if n or k:
+            assert len(B) == m
+            if m:
+                assert len(B[0]) == k
         assert len(A_Q) == n
         if n:
             assert len(A_Q[0]) == m
@@ -519,8 +742,6 @@ class Braid:
         return mult, rational_homology, integer_homology
 
 
-
-
     def inv_nonzero(self):
         v = self.get_inv_v()
         r = self.inv_r
@@ -543,6 +764,7 @@ class Braid:
         print("\n\n")
         return 1
 
+    #TODO: deprecated??
     def inv_factors(self):
         v = self.get_inv_v()
         r = self.inv_r
@@ -559,7 +781,7 @@ class Braid:
         for char in [0,2,3,5]:
             #copy matrix
             TempM = [[fe.FE(M[i][j],char) for j in range(len(M[0]))] for i in range(len(M))]
-            assert len(col_labels) == len(TempM[0]), "{},{},{}".format(self.presentation,len(col_labels),len(TempM[0]))
+            assert len(col_labels) == len(TempM[0]), "{},{},{}".format(self.word,len(col_labels),len(TempM[0]))
             in_image, factor = alg.dumber_row_reduce(TempM, col_labels,self.d)
             assert (isinstance(factor,int))
             if not in_image:
@@ -584,7 +806,6 @@ class Braid:
 
 
     #TeX output functions
-
     def str_q(self,a,p):
         if a == 0:
             return ""
@@ -659,7 +880,7 @@ class Braid:
         print("\\end{tabular}\\end{center}")
 
     def texplanation(self,s = "", maps = True, ddCheck = False):
-        print("\\section{{Braid: {}, ${}$}}\n".format(s,self.presentation))
+        print("\\section{{Braid: {}, ${}$}}\n".format(s,self.word))
         self.tex_braid()
         print("\nUngraded Euler Characteristic: ${}$\n".format(self.raw_euler_characteristic()))
         print("\n(Unreduced) Jones Polynomial: $\\hat J(L) = $\n\\[{}\\]\n".format(self.print_Jones()))
@@ -696,7 +917,7 @@ class Braid:
     def tex_braid(self):
         print("\\begin{center}\\begin{tikzpicture}[scale = 0.4]")
         i = 0
-        for x in self.presentation:
+        for x in self.word:
             if x > 0:
                 print("\t\\braidline{{{}}}{{{}}}{{0}}{{{}}}{{1}}".format(self.b,x,i))
             else: 
@@ -735,11 +956,11 @@ class Braid:
             # d: the planar diagram
             d = []
             
-            l = len(self.presentation)
+            l = len(self.word)
             for j in range(l):
                 ####print(a)
                 # x: current crossing
-                x = self.presentation[j]
+                x = self.word[j]
                 # compute current strand labels
                 b[:] = a[:]
                 c = alg.abs(x)
@@ -1049,7 +1270,7 @@ class Braid:
         return vertices
 
     def explanation(self):
-        print("Braid:",self.presentation)
+        print("Braid:",self.word)
         print("Vertices that map to cycle's vertex:")
         edges_in = self.get_edges_into_inv()
         for edge in edges_in:

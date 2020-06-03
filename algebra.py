@@ -153,7 +153,6 @@ def field_row_echelon(A):
     return pivot_row
         #put into pivot position
 
-
 def int_row_reduce(M,col_labels,dim):
     #M is an nxm matrix
     n = len(M)
@@ -303,6 +302,8 @@ def field_homology(A,B,not_field = False):
     k = rank_A = rank_B = 0
     if B:
         k = len(B[0])
+    elif A:
+        m = len(A[0])
     if n and m:
         rank_A = field_row_echelon(A)
     if m and k:
@@ -312,27 +313,25 @@ def field_homology(A,B,not_field = False):
     H = ker - im
     return H
 
-def integer_homology(A,B):
-    n = len(A)
-    m = len(B)
-    k = rank_A = rank_B = 0
+def integer_homology(A,B,k,m,n):
+    assert n == len(A) or len(A) == 0, "n = {}, len(A) = {}".format(n,len(A))
+    assert m == len(B) or len(B) == 0, "m = {}, len(B) = {}".format(m,len(B))
+    assert not A or m == len(A[0])
+    assert not B or k == len(B[0])
+    rank_A = rank_B = 0
     tor = []
-    if B:
-        k = len(B[0])
-    elif A:
-        m = len(A[0])
-    if n and m:
+    if A:
         A_Q = [[fe.FE(col,0) for col in row] for row in A]
         rank_A = field_row_echelon(A_Q)
-    if m and k:
+    if B:
         S,D,_ = smith_normal_form(B)
         d = [D[i][i] for i in range(min(m,k)) if D[i][i] != 0]
         rank_B = len(d)
         tor = [i for i in d if (i != 1)]
     ker = m - rank_A
-    ext = ker - rank_B
-    return ext, tor
-
+    betti = ker - rank_B
+    #print("Rank A: {}, Rank_B: {}, ker: {}".format(rank_A,rank_B,ker))
+    return betti, tor
 
 def homology(A,B):
     print ("\n\n\nB:")
