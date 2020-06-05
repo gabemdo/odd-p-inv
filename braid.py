@@ -43,8 +43,10 @@ class Braid:
         self.squares = ss.SquareStruct(self.d)
         #TODO: split by grading
         self.maps = es.EdgeStruct(self.d)
+        self.computed = False
         #self.maps = {}
-        self.char = 0
+        #self.char = 0
+        self.odd = True
         #TODO: add in storage for grading information
         #Note: Number of components (hence dim V_alpha) is at most self.d, and thus between 1 and self.d
         #Note: Exterior algebra alg-grading, k, is limited by dim V_alpha, and thus between 0 and dim V_alpha
@@ -57,7 +59,19 @@ class Braid:
         #Storage convention: store in dictionary by key Q_0+M_0
         #print("Initialized")
 
+    def set_odd(self):
+        if not self.odd:
+            self.reset()
+        self.odd = True
 
+    def set_even(self):
+        if self.odd:
+            self.reset()
+        self.odd = False
+
+    def reset(self):
+        self.maps = es.EdgeStruct(self.d)
+        self.computed = False
 
     #Basic helper functions
 
@@ -100,6 +114,14 @@ class Braid:
             self.inv_r = alg.height(v)
         return self.inv_v
 
+    def target_vertex(self,edge):
+        assert self.is_edge(edge)
+        return edge[0] + (1<<edge[1])
+
+    def is_edge(self,edge):
+        if self.v(*edge):
+            return False
+        return True
 
     #Basic Math Checks
 
@@ -141,7 +163,7 @@ class Braid:
 
     def dd(self,r):
         assert (r >= 0 and r < self.d - 1)
-        if not self.maps.is_fully_changed():
+        if not self.computed:#self.maps.is_fully_changed():
             self.comp_maps()
         p = [[] for _ in range(1<<self.d)]
         #Possibly to be deprecated so field stuff is handled later.
@@ -183,7 +205,7 @@ class Braid:
                             for t in prod[v][g][de]:
                                 #print("$"+str(prod[v][g][de][t])+"$, ",end="")
                                 #print(v,g,de,t,"$",str(prod[v][g][de][t]),"$",end="")
-                                if prod[v][g][de][t].n:
+                                if prod[v][g][de][t]:#.n:
                                     flag = False
                                     #error_list.append((self.str_v(v),self.str_v(g),de,self.str_v(t)))
                                     error_dict[(v,de[0],de[1])] = error_dict.get((v,de[0],de[1]),[]) + [(g,t)]
@@ -236,7 +258,9 @@ class Braid:
         k = alg.height(g)
         r = alg.height(v)
         #print("grading of {},{}, dimV= {}, k={},r={}. Grading = {}".format(v,g,dimV,k,r,dimV+r-2*k))
-        return dimV + r - 2*k
+        if self.odd:
+            return dimV + r - 2*k
+        return 2*k - dimV + r
 
     def make_graded_entry_dictionary(self,r,grade,verticals):
         rev_dict = {}
@@ -250,17 +274,17 @@ class Braid:
                     i += 1
         return i, rev_dict
 
-    def make_graded_entry_dictionary_set(self,r,verticals):
-        rev_dict = {}
-        i = {}
-        if r <= self.d and r >= 0:
+    def make_graded_entry_dictionary_set(self,verticals):
+        rev_dict = [{} for _ in range(self.d+1)]
+        i = [{} for _ in range(self.d+2)] #possibly + 2 for terminal 0s
+        for r in range(self.d+1):
             verticals(r)
             for v,g in verticals:
                 grade = self.grade(v,g)
-                rev_dict[grade] = rev_dict.get(grade,{})
-                i[grade] = i.get(grade,0)
-                rev_dict[grade][v,g] = i[grade]
-                i[grade] += 1
+                rev_dict[r][grade] = rev_dict[r].get(grade,{})
+                i[r][grade] = i[r].get(grade,0)
+                rev_dict[r][grade][v,g] = i[r][grade]
+                i[r][grade] += 1
         return i, rev_dict
 
     def make_matrix(self,r,column,row,augmented = False):
@@ -310,8 +334,11 @@ class Braid:
                             for h in self.maps[v,i][g]:
                                 B[mid_i[u,h]][col_i[v,g]] = self.maps[v,i][g][h]
         inv_v = self.get_inv_v()
-        inv_g = (1<<self.get_res_len(inv_v))-1
+        inv_g = 0
+        if self.odd:
+            inv_g = (1<<self.get_res_len(inv_v))-1
         #print(k,m,n,inv_v,inv_g,mid_i)
+        #print(mid_i)
         inv_index = mid_i[inv_v,inv_g]
         if r < self.d:
             A = [[fe.FE(0,0) for _ in range(m)] for _ in range(n)]
@@ -383,20 +410,18 @@ class Braid:
         return A
 
     def make_graded_matrix_set(self,verticals):
-        #index of matrix set is the height
-        #dictionary keys are grading
-        #dictionary value is graded_matrix
         matrix_set = [{} for _ in range(self.d+2)]
-        indices = [None for _ in range(self.d+1)]
-        indices[0], col_i = self.make_graded_entry_dictionary_set(0,verticals)
-        #print(0, col_i)
-        for grade in indices[0]:
-            matrix_set[-1][grade] = []
+        dim, index = self.make_graded_entry_dictionary_set(verticals)
+        #for grade in indices[0]:
+        #    matrix_set[-1][grade] = []
+        #    indices[-1][grade] = 0
         for r in range(self.d):
-            indices[r+1], row_i = self.make_graded_entry_dictionary_set(r+1,verticals)
+            #NOTE spot of r+1 is rows
+            #NOTE spot of  r  is cols
+            for grade in dim[r]:
+                matrix_set[r][grade] = [[0 for _ in range(dim[r][grade])] for _ in range(dim[r+1].get(grade,0))]
+                #indices[-1][grade] = 0 
             verticals(r)
-            for grade in indices[r]:
-                matrix_set[r][grade] = [[0 for _ in range(indices[r][grade])] for _ in range(indices[r+1].get(grade,0))]
             for v,g in verticals:
                 grade = self.grade(v,g)
                 for i in range(self.d):
@@ -404,22 +429,10 @@ class Braid:
                         u = v + (1<<i)
                         for h in self.maps[v,i][g]:
                             value = self.maps[v,i][g][h]
-                            matrix_set[r][grade][row_i[grade][u,h]][col_i[grade][v,g]] = value
-            #for grade in indices[r]:
-                #if not matrix_set[r][grade]:
-                    #print(matrix_set[r][grade])
-                    #print(col_i[grade])
-                    #matrix_set[r][grade] = [[0 for key in col_i[grade]]]
-            col_i = row_i
-            #print(r+1, col_i)
-        #print(indices[self.d])
-        #print(matrix_set[self.d])
-        #print(matrix_set[self.d])
-        #for grade in indices[self.d]:
-        #    print("GRADES:", grade,len(matrix_set))
-            #matrix_set[self.d][grade] = matrix_set[self.d].get(grade,[[0 for key in col_i[grade]]])
-        #print("Matrix set: ",matrix_set)
-        return indices, matrix_set
+                            matrix_set[r][grade][index[r+1][grade][u,h]][index[r][grade][v,g]] = value
+        #for grade in indices[-1]:
+        #    print("Grade = {:>2},  {:>2}".format(grade, " ".join([" {:>2}".format(indices[r].get(grade,0)) for r in range(self.d+1)])))
+        return dim, matrix_set
 
     def make_matrix(self,r,verticals):
         m, col_i = self.make_entry_dictionary(r,verticals)
@@ -436,12 +449,21 @@ class Braid:
 
     def comp_full_graded_homology(self):
         self.comp_maps()
+        #self.check_dd()
         #Grading and Thin-ness stuff
+        if self.odd:
+            group_str = "KH'"
+        else:
+            group_str = "KH"
+
         shift = self.d - 3*self.nmin
+        print("Q-Grade is shifting up by {}. H-Grade is shifted down by {}.".format(shift,self.nmin))
         diagonal = {}
         sl = self.d - (2*self.nmin + self.b)   #the self-linking number
         #Set up
         verticals = col.Row(self.d,self.res_len)
+        #print("Odd?",self.odd)
+        #print(self.maps)
         indices, matrix_set = self.make_graded_matrix_set(verticals)
         ##print(indices)
         started = False
@@ -459,6 +481,10 @@ class Braid:
                     A = [row[:] for row in matrix_set[r].get(grade,[])]
                 else:
                     A = []
+                #TEST to deal with m8_19 anomoly 
+                #if grade == 5 and r == 5:
+                #    print(B)
+                #    print("\n",A)
                 ##print("\nHeight: {}; Grading: {}".format(r,grade))
                 ##print(B,"\n")
                 ##print(A)
@@ -466,6 +492,7 @@ class Braid:
                 m = indices[r].get(grade,0)
                 n = 0 if r == self.d else indices[r+1].get(grade,0) 
                 ##print("k= {}, m={}, n= {}".format(k,m,n))
+                #print("r = {}, grade = {}, (k,m,n) = ({},{},{})".format(r,grade,k,m,n))
                 betti,tor = alg.integer_homology(A,B,k,m,n)
                 #print("\nBetti: {}; Torsion: {}".format(betti,tor))
                 #if tor and tor[0] == 3:
@@ -473,7 +500,8 @@ class Braid:
                 #    print(B,"\n")
                 #    print(A,"\n")
                 #    print(k,m,n)
-                groups = ["Z^{}".format(betti)] if betti else [] + ["Z/{}".format(p) for p in tor]
+                groups = (["Z^{}".format(betti)] if betti else []) + ["Z/{}".format(p) for p in tor]
+                #groups += ["Z/{}".format(p) for p in tor]
                 if groups:
                     d = (grade+shift) - 2*(r- self.nmin)
                     diagonal[d] = diagonal.get(d,0) + 1
@@ -489,11 +517,11 @@ class Braid:
             elif ended:
                 ended = False
                 for i in range(zero_start,r):
-                    print("KH'_({:>2})(L) = 0".format(i-self.nmin))
-                r = -1
+                    print("{}_({:>2})(L) = 0".format(group_str,i-self.nmin))
+                zero_start = -1
             else:
                 started = True
-            print("KH'_({:>2})(L) = {}".format(r-self.nmin," + ".join(s)))
+            print("{}_({:>2})(L) = {}".format(group_str,r-self.nmin," + ".join(s)))
         if len(diagonal) not in [0,2]:
             max_width = 0
             mode_width = -1
@@ -627,29 +655,32 @@ class Braid:
                 print("KH'_{}(L) = {}".format(r," + ".join(torsion)))
 
     def comp_inv(self,print_output = True):
-        #prepare invariant vertex and height
         v = self.get_inv_v()
         r = self.get_res_len(v)
-        g = (1<<r)-1
+        g = 0
+        if self.odd:
+            g = (1<<r)-1
         r = self.inv_r
-        #print("Computing grading according to inv, v,g={},{}, r={}".format(v,g,r))
+
+        if self.odd:
+            group_str = "KH'"
+        else:
+            group_str = "KH"
+
+        #print(v,g)
         grade = self.grade(v,g)
-        #prepare maps
-        #TODO DELTA: only prepare edge_signs and needed maps instead
+        #make a comp_maps that ignores extra levels
         self.comp_maps()
         for i in range(1<<self.d):
             if not self.res_len[i]:
                 assert False, "We should not get here because res_len should be set by comp_maps."
                 self.get_res_len(i)
-        #prepare matrices
         verticals = col.Row(self.d,self.res_len)
-        A_Q,B,k,m,n,inv_index = self.make_graded_matrix_pair(r,grade,verticals)#,False,True)
-        #print(A_Q)
-        #print(B)
-        if n or k:
+        A_Q,B,k,m,n,inv_index = self.make_graded_matrix_pair(r,grade,verticals)
+        #print(k,m,n,B)
+        if m and k:
             assert len(B) == m
-            if m:
-                assert len(B[0]) == k
+            assert len(B[0]) == k
         assert len(A_Q) == n
         if n:
             assert len(A_Q[0]) == m
@@ -657,42 +688,12 @@ class Braid:
             B = []
         if not (m and n):
             A = []
-        """
-        TempB = [[B[i][j] for j in range(k+1)] for i in range(m)]
-        in_image,factor = alg.i_row_reduce(TempB)
-        char_list = [0,2,3,5]
-        if in_image:
-            print("\n\nThe invariant is in the image of $d$ over $\\mathbb Z$, and is thus is $0$ over $\\mathbb Z,\\mathbb Z/p,$ and $\\mathbb Q$.\n")
-            char_list = [0]
-        for char in char_list:
-            TempA = [[fe.FE(A[i][j],char) for j in range(m)] for i in range(n)]
-            TempB = [[fe.FE(B[i][j],char) for j in range(k)] for i in range(m)]
-            ker_A, im_B = alg.simultaneous_reduce(TempA,TempB)#,alg.print_mat,inv_index)
-            if char == 0:
-                print(ker_A,im_B)
-                print("\n\nThe homology at $r=0$ over $\\mathbb Q$ is $\\mathbb Q^{{{}}}$.".format(ker_A - im_B))
-                ker = ker_A
-            else:
-                print(ker_A,im_B)
-                print("\n\nThe homology at $r=0$ over $\\mathbb Z/{}$ has rank ${}$.".format(char,ker_A - im_B))
-                assert ker == ker_A, "The ker over Q is not equal to the ker over Z/{}".format(char)
-            #assert len(S) == len(psi)
-            #self.print_eq(S,psi)
-            #for entry in psi:
-            #    print("${}$ ".format(entry),end="")
-            #if statements once it's returning something
-        TempB = [[B[i][j] for j in range(k)] for i in range(m)]
-        """
-        #Compute Smith Normal Form of B
-        #Get the dim of the image, im
-        #Get the tor and torsion, list of torsion, length of tor
-        #Get the betti number, betti
         d = []
         tor = []
         im = torsion = rank_A = 0
         S = []
         if k and m:
-            S,D,_ = alg.smith_normal_form(B)#TempB)
+            S,D,_ = alg.smith_normal_form(B)
             while im < min(m,k) and D[im][im]:
                 d.append(D[im][im])
                 if abs(D[im][im]) != 1:
@@ -700,29 +701,20 @@ class Braid:
                     torsion += 1
                 im += 1
         nontor = im - torsion
-        ###############
-        #Compute the Field Row Echelon of A_Q
-        #Get the rank_A
         if m and n:
             rank_A = alg.field_row_echelon(A_Q)
         ker = m - rank_A
-        ###?????
         betti = ker - im
-        #Print Rational Homology
         if print_output:
-            print("\n$KH_0'(L;\\mathbb Q)={}$".format("\\mathbb Q^{{{}}}".format(ker-im) if (ker-im) else "0"))
-        #Print Integer Homology
+            print("\n${{{}}}_0'(L;\\mathbb Q)={}$".format(group_str,"\\mathbb Q^{{{}}}".format(ker-im) if (ker-im) else "0"))
         betti_str = ["\\mathbb Z^{{{}}}".format(betti)] if betti else []
         homology_groups = betti_str + ["\\mathbb Z/{}".format(p) for p in tor]
         if not homology_groups:
             homology_groups = ["0"]
         if print_output:
-            print("\n$KH_0'(L;\\mathbb Z)={}$".format(" \\oplus ".join(homology_groups)))
-        
-        #print("\n\n Raw info:\n\nd:{}\n\nker:{}\n\ni:{}".format(" ".join([str(di) for di in d]),ker,i))
-        #print("\n\n $Kh'_0(L) = " + " \\oplus ".join(hom_list) + "$")
-        if print_output and self.inv_r == 0:
-            print("\nThe invariant is non-zero, non-torsion, indivisible, and in the lowest level homology group.\n")
+            print("\n${{{}}}_0(L;\\mathbb Z)={}$".format(group_str," \\oplus ".join(homology_groups)))
+            if self.inv_r == 0:
+                print("\nThe invariant is non-zero, non-torsion, indivisible, and in the lowest level homology group.\n")
         mult = 0
         if k and m:
             y = [1 if i == inv_index else 0 for i in range(m)]
@@ -731,12 +723,10 @@ class Braid:
             if mult == 0:
                 print("\nThere is no $x$ and no $n\\in\\mathbb Z$ such that $dx=n\\psi(L)$. ")
                 print("Thus $\\psi(L)$ is non-zero and non-torsion in $\\mathbb Z$ and $\\mathbb Q$. ")
-                #print("\n\n There is no $n\\in\\mathbb Z$ and $x$ such that $dx=n\\psi(L)$. Thus $\\psi(L)$ is non-torsion.")
             elif mult == 1:
                 print("\nIn the chain complex $\\psi(L)$ is a boundary. Thus, in homology $\\psi(L)=0$ in all coefficients.")
             else:
                 print("\nThe smallest positive integer $n$ such that there is an $x$ such that $dx=n\\psi(L)$ is {}. Thus $\\psi(L)$ is torsion.".format(mult))
-            #compute simultaneous reduction of integer stuff
         rational_homology = ker - im 
         integer_homology = (betti,tor)
         return mult, rational_homology, integer_homology
@@ -1030,17 +1020,24 @@ class Braid:
             sym.append(b)
         self.res[v] = self.sym_to_circles(sym)
         self.res_len[v] = len(self.res[v])
+        #print(v,self.res[v])
         return self.res[v]
 
     def get_res_len(self,v):
-        assert (v < (1<<self.d))
-        if self.res_len[v]:
+        if isinstance(v,int):
+            assert (v < (1<<self.d))
+            if self.res_len[v]:
+                return self.res_len[v]
+            if self.res[v]:
+                self.res_len[v] = len(self.res[v])
+                return self.res_len[v]
+            self.res_len[v] = len(self.get_res(v))
             return self.res_len[v]
-        if self.res[v]:
-            self.res_len[v] = len(self.res[v])
-            return self.res_len[v]
-        self.res_len[v] = len(self.get_res(v))
-        return self.res_len[v]
+        else:
+            assert self.is_edge(v)
+            v_len = self.get_res_len(v[0])
+            u_len = self.get_res_len(self.target_vertex(v))
+            return (v_len,u_len)
 
     def get_circle(self,re,segment):
         resolution = self.get_res(re)
@@ -1054,16 +1051,18 @@ class Braid:
     #Map Computation
 
     def comp_maps(self):
-        if self.maps.is_fully_changed():
+        if self.computed: #self.maps.is_fully_changed():
             return None
-        self.comp_edge_signs()
+        if self.odd:
+            self.comp_edge_signs()
         for edge in self.maps:
             self.maps[edge] = self.edge_map(edge)
+        self.computed = True
 
     def comp_edge_signs(self):
         ## Algorithm due to Shumakovitch
         #Make sure edge_signs is initialized
-        if self.edge_signs.is_fully_changed():
+        if self.computed: #self.edge_signs.is_fully_changed():
             return self.edge_signs
         n = self.d
         for delta in range(self.d):
@@ -1116,21 +1115,79 @@ class Braid:
         return -1     #Type X
 
     def edge_map(self,edge):
-        assert (self.v(edge[0],edge[1]) == 0)
-        scir = self.get_res_len(edge[0])
-        next = edge[0] + (1<<edge[1])
-        if scir < self.get_res_len(next):
-            mp = self.split_map(edge) #TAG FIELD UPDATE
-            self.scalar_mult_algebra_map(self.get_edge_sign(edge),mp)
-            return mp
+        # v (edge[0]) and u (self.target_vertex(*edge) are connected by edge
+        v = edge[0]
+        u = self.target_vertex(edge)
+        v_res_len, u_res_len = self.get_res_len(edge)
+        #'edge[0] + (1<<edge[1])
+        if v_res_len < u_res_len:
+            if self.odd:
+                edge_map = self.split_map(edge) #TAG FIELD UPDATE
+                self.scalar_mult_algebra_map(self.get_edge_sign(edge),edge_map)
+            else:
+                edge_map = self.even_split_map(edge)
+                self.scalar_mult_algebra_map(self.even_edge_sign(edge),edge_map)
+            return edge_map
         else:
-            #Possibly to be deprecated
-            #vmap = [(self.get_circle(next,self.get_res(edge[0])[i][0]),fe.FE(1,self.char)) for i in range(scir)]
-            vmap = [(self.get_circle(next,self.get_res(edge[0])[i][0]),1) for i in range(scir)]
-            #print(vmap)
-            mp = self.induced_map(edge[0],vmap) #TAG FIELD UPDATE
-            self.scalar_mult_algebra_map(self.get_edge_sign(edge),mp)
-            return mp
+            if self.odd:
+                base_map = [(self.get_circle(u,self.get_res(v)[i][0]),1) for i in range(v_res_len)]
+                edge_map = self.induced_map(edge[0],base_map)
+                self.scalar_mult_algebra_map(self.get_edge_sign(edge),edge_map)
+            else:
+                edge_map = self.even_merge_map(edge)
+                self.scalar_mult_algebra_map(self.even_edge_sign(edge),edge_map)
+            return edge_map
+
+    def even_merge_map(self,edge):
+        #print("Not assigned, Merge")
+        v = edge[0]
+        v_res = self.get_res(v)
+        v_res_len = len(v_res)
+        u = self.target_vertex(edge)
+        target_circles = []
+        i = j = -1
+        for k in range(v_res_len):
+            circle = self.get_circle(u,v_res[k][0])
+            if i < 0 and circle in target_circles:
+                #print("Assigned, Merge")
+                i = target_circles.index(circle)
+                j = len(target_circles)
+            target_circles.append(circle)
+        edge_map = [{} for _ in range(1<<v_res_len)]
+        for g in range(1<<v_res_len):
+            targets = self.even_merge(g,i,j)
+            for target in targets:
+                edge_map[g][target] = 1
+        return edge_map
+
+    def even_split_map(self,edge):
+        #print("Not assigned, Split",edge)
+        v = edge[0]
+        v_res_len = self.get_res_len(v)
+        u = self.target_vertex(edge)
+        u_res = self.get_res(u)
+        u_res_len = len(u_res)
+        source_circles = []
+        i = -1
+        j = -1
+        for k in range(u_res_len):
+            circle = self.get_circle(v,u_res[k][0])
+            if i < 0 and circle in source_circles:
+                #print("Assigned, Split")
+                i = source_circles.index(circle)
+                j = len(source_circles)
+                #print(i,j)
+                break
+            source_circles.append(circle)
+        #print(source_circles)
+        edge_map = [{} for _ in range(1<<v_res_len)]
+        for g in range(1<<v_res_len):
+            targets = self.even_split(g,i,j)
+            for target in targets:
+                edge_map[g][target] = 1
+        return edge_map
+
+
 
     def scalar_mult_algebra_map(self,scalar,mp):
         for i in range(len(mp)):
@@ -1179,6 +1236,7 @@ class Braid:
                 target += (1<<t)
             if sign:
                 algebra_map[i][target] = algebra_map[i].get(target,zero) + p*sign
+                assert algebra_map[i][target] != 0
         return algebra_map
 
     def split_map(self,edge):
@@ -1230,7 +1288,7 @@ class Braid:
                             sign *= -1
                     #print("i,key,imap[i],d[1]")
                     #print(i,key,imap[i],d[1])
-                    #print("map1[i][j+(1<<d[1])] = -1*imap[i][key]")
+                    #print_mapnt("map1[i][j+(1<<d[1])] = -1*imap[i][key]")
                     map1[i][key+(1<<d[1])] = imap[i][key]*sign
                 #else:
                 #    map1[i][0] = 0
@@ -1240,6 +1298,39 @@ class Braid:
         self.add_algebra_maps(map0,map1)
         return map0
 
+
+    #Even Khovanov Homology
+
+    def even_edge_sign(self,edge):
+        i = 1
+        for k in range(edge[1]):
+            if (edge[0] >> k) % 2 == 1:
+                i *= -1
+        return i 
+
+    def even_merge(self,g,i,j):
+        #g is binary number < (1<<res_len)
+        #g>>i % 2 = 0 if i tensor factor is v-, = 1 if i tensor factor is v+
+        #i is part merge goes to
+        #j is part merged away
+        if g&((1<<i)|(1<<j)):
+            if not(g & (1<<i) and  g & (1<<j)):
+                g = g & ~(1<<i)
+            return [((g&~((2<<j)-1))>>1) | (g&((1<<j)-1))]
+        return []
+
+    def even_split(self,g,i,j):
+        assert i < j, "i = {}, j = {}".format(i,j)
+        #g is binary number < (1<<res_len)
+        #g>>i % 2 = 0 if i tensor factor is v-, = 1 if i tensor factor is v+
+        #i is part to be split
+        #j is tensor factor added in
+        #by ordering on resolutions it is assumed i < j
+        g_ = g & ~(1<<i)
+        split = ((g_ & ~((1<<j)-1))<<1) | g_ & ((1<<j)-1)
+        if (g >> i) % 2:
+            return[split+(1<<i),split+(1<<j)]
+        return [split]
 
 
     #Possibly Defunct Functions 

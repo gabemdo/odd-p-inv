@@ -326,6 +326,7 @@ def integer_homology(A,B,k,m,n):
     if B:
         S,D,_ = smith_normal_form(B)
         d = [D[i][i] for i in range(min(m,k)) if D[i][i] != 0]
+        #print([t for t in d if t > 1])
         rank_B = len(d)
         tor = [i for i in d if (i != 1)]
     ker = m - rank_A
