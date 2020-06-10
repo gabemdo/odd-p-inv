@@ -21,13 +21,23 @@ def driver(braid_list):
         ratio = min(nmin,nplus)/n
         print("Braid: {}, {}, negative ratio = {:.5}".format(braid[0],"" if n == 1 else braid[1], ratio))
         br = b.Braid(braid[1])
+        br.set_even()
         mult,qhom,ihom = br.comp_inv(False)
         if mult == 1:
-            print("Inv Zero\n")
+            print("    Even Inv Zero\n")
         elif mult == 0:
-            print("Inv NonZero\n")
+            print("    Even Inv NonZero\n")
         else:
-            print("Inv Torsion: {}\n".format(mult))
+            print("    Even Inv Torsion: {}\n".format(mult))
+        br.set_odd()
+        mult,qhom,ihom = br.comp_inv(False)
+        if mult == 1:
+            print("    Odd  Inv Zero\n")
+        elif mult == 0:
+            print("    Odd  Inv NonZero\n")
+        else:
+            print("    Odd  Inv Torsion: {}\n".format(mult))
+
 
 if __name__ == "__main__":
     file = sys.argv[1]

@@ -59,6 +59,13 @@ class Braid:
         #Storage convention: store in dictionary by key Q_0+M_0
         #print("Initialized")
 
+    def __str__(self):
+        sl = self.d - self.b - 2*self.nmin
+        return "Braid word: B = {}, sl(B) = {}".format(self.word,sl)
+
+    def get_word(self):
+        return self.word
+
     def set_odd(self):
         if not self.odd:
             self.reset()

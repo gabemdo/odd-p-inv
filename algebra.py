@@ -649,13 +649,19 @@ def solve_mat_mult(S,d,y):
     #y is m x 1
     assert m == len(y)
     #Check Sy (m x 1) is 0 for i >= r (indexed from 0)
+    zero = False
+    u = []
     for i in range(r,m):
         sum = 0
         for j in range(m):
             sum += S[i][j]*y[j]
+        u.append(sum)
         if sum != 0:
             #print(i,sum)
-            return 0
+            zero = True
+    if zero:
+        print(u)
+        return 0
     s = 1
     #we need for each i in range(r) that d[i]| s(Sy)[i]
     for i in range(r):
