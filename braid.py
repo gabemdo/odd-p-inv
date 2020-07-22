@@ -59,8 +59,33 @@ class Braid:
         #Storage convention: store in dictionary by key Q_0+M_0
         #print("Initialized")
 
+    #TODO
+    def self_linking_number(self):
+        return self.d - self.b - 2*self.nmin
+
+    def mirror(self):
+        word = [-el for el in self.word]
+        return Braid(word)
+
+    def reverse(self):
+        word = self.word[::-1]
+        return Braid(word)
+
+    def __add__(self,other):
+        #Warning! This is intended only for sums of knots not for links
+        ##TODO: add component check and return add only if both component numbers are 1
+        word = self.word
+        b = self.b
+        new = other.word
+        for el in new:
+            if el > 0:
+                word.append(el + b - 1)
+            else:
+                word.append(el - b + 1)
+        return Braid(word)
+
     def __str__(self):
-        sl = self.d - self.b - 2*self.nmin
+        sl = self.self_linking_number()
         return "Braid word: B = {}, sl(B) = {}".format(self.word,sl)
 
     def get_word(self):
