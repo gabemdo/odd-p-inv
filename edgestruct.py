@@ -1,4 +1,5 @@
 class EdgeStruct:
+    #This provides a container and iterator for the edges in a cube complex.
 
     def __init__(self,d,value = None):
         self.d = d

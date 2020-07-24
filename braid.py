@@ -7,11 +7,15 @@ import column as col
 
 class Braid:
     # Some convetions:
-    # Implement x used for crossing index number in the braid word
-    # x ranges in self.d, the number of crossing or the dimention of the hypercube
-    # Implement s used for crossing strand number in the braid word
-    # s ranges in self.b, the braid index or the number strands in the braid
+    # Braids are veritical, braid words are read from top crossing down.
+    # Orientation is upward.
+    # Closure is to the right.
+    # The variable x is used for crossing index number in the braid word
+    # The variable s is used for crossing strand number in the braid word
+    # s ranges in 1..self.b, the braid index or the number strands in the braid
     #           | self.word[x] | = s
+    # Vertices are for khovanov homology cube. Treated as index number.
+    # Interpret vertices as binary for smoothing: top crossing is units place.
     # height of vertex is number of 1s in binary, ranges 0 .. self.d
     # Vextex convention:
     ### vertices are numbered 0 .. (1<<self.d)-1
@@ -25,9 +29,10 @@ class Braid:
 
     def __init__(self,braid_word):
         #The braid word of a braid is given as a list of non-zero integers
+        #Values are +/- the strand the crossing is on.
+        #The sign of the value matches the sign of the crossing.
         assert (len(braid_word) > 0)
         self.word = braid_word
-        #The braid index is inferred. Perhaps it is better to take it as an argument.
         self.b = self.comp_b(self.word)
         self.nmin = self.count_negative_crossings()
         self.d = len(self.word)
@@ -40,13 +45,16 @@ class Braid:
 
 
     def self_linking_number(self):
+        #Returns the Self-Linking Number of the braid
         return self.d - self.b - 2*self.nmin
 
     def mirror(self):
+        #Returns the mirror of the braid.
         word = [-el for el in self.word]
         return Braid(word)
 
     def reverse(self):
+        #Returns the reversed orietation of the braid
         word = self.word[::-1]
         return Braid(word)
 
@@ -81,17 +89,17 @@ class Braid:
 
     #Basic helper functions
 
-    def comp_b(self,braid):
+    def comp_b(self,braid_word):
         #return the width of the braid
         i = 0
-        for s in braid:
-            c = alg.abs(s)
-            if c > i:
-                i = c
+        for w in braid_word:
+            s = alg.abs(w)
+            if s > i:
+                i = s
         return i+1
 
     def count_negative_crossings(self):
-        #return n-
+        #return n-: the number of negative crossings
         n = 0
         for x in self.word:
             if x < 0:
@@ -117,6 +125,7 @@ class Braid:
         return self.inv_v
 
     def get_inv_r(self):
+        #Returns the height of the invariant's vertex
         if self.inv_v < 0:
             self.get_inv_v()
         return self.inv_r
@@ -136,6 +145,7 @@ class Braid:
     #Resolution Computation
 
     def get_x_diagram(self):
+        #Computes a planar diagram of the braid. Pairs with the closure which attached the bottom to the top.
         if not self.x_diagram:
             n = self.b
             #The segments of braid are labeled.

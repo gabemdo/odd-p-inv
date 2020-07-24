@@ -1,8 +1,8 @@
 import braid as br
 
 class Grid:
-    
-    def __init__(self, xcol, ocol):#orow, xrow):
+    #NOTE: The convention here is that the xcol and ocol lists are the indices (indexed from 0) if the x's and o's as given row by row.
+    def __init__(self, xcol, ocol):
         self.xcol = xcol
         self.ocol = ocol
         assert (len(self.ocol) == len(self.xcol))
@@ -14,9 +14,6 @@ class Grid:
             self.xrow[self.xcol[i]] = i
             self.orow[self.ocol[i]] = i
 
-
-    #THINK ABOUT THIS MORE
-    #ROTATING THE GRID DOES NOT ROTATE THE KNOT, we need to interchange X and O sometimes TOO
     def rotate_grid(self,n=1):
         #rotates the grid clockwise by n*90degrees.
         if n%4 == 0:

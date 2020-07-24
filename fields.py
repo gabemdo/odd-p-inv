@@ -1,4 +1,7 @@
 class FE:
+    #This is a class that contains field elements of variable characteristic.
+    #For finite fields, characteristic = p, we initialize FE(value,p)
+    #For rationals, we initialize FE(n,0) for integer n or FE((n,d),0) for rational n/d.
     def __init__(self, value, characteristic):
         self.c = characteristic
         if characteristic == 0:

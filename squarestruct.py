@@ -1,4 +1,7 @@
 class SquareStruct:
+    #This is a container for the faces of the cube for the Khovanov homology.
+    #It provides an iterator that is used in the inductive definition of the sign assignment for edges in the odd Khovanov homology.
+    #The iterator does not iterator through all faces.
 
     def __init__(self,d):
         self.d = d
@@ -31,12 +34,16 @@ class SquareStruct:
 
     def __iter__(self):
         #change to inductive order
-        for d in range(1,self.d):
-            for a in range(d):
-                for b in range(1<<a):
-                    for c in range(1<<(d-a-1)):
-                        v = b + (c<<(a+1))
-                        yield v, a, d
+        for j in range(1,self.d):
+            for i in range(j):
+                for b in range(1<<i):
+                    for k in range(1<<(j-i-1)):
+                        v = b + (k<<(i+1))
+                        yield v, i, j
+        #v = A0B0C where |C| = i, |B| + 1 + |C| = j
+        #A = 0
+        #B = k
+        #C = b
         """
         for i in range(1<<self.d):
             for j in self.e[i]:

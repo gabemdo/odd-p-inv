@@ -7,15 +7,6 @@ import algebra as alg
 import column as col
 
 class KhovanovHomology:
-    # Some convetions:
-    # Implement x used for crossing index number in the braid word
-    # x ranges in self.d, the number of crossing or the dimention of the hypercube
-    # Implement s used for crossing strand number in the braid word
-    # s ranges in self.b, the braid index or the number strands in the braid
-    #           | self.word[x] | = s
-    # height of vertex is number of 1s in binary, ranges 0 .. self.d
-    # Vextex convention:
-    ### vertices are numbered 0 .. (1<<self.d)-1
     # Edge convention:
     ### edges are pairs(vertex, i)
     ### it is assumed that ((vertex>>i) % 2 == 0) (that is, in binary the ith place is 0)
@@ -44,27 +35,12 @@ class KhovanovHomology:
             pass #TODO check if other type of input, e.g. grid or just x_diagram
         self.edge_signs = es.EdgeStruct(self.d,0)
         self.squares = ss.SquareStruct(self.d)
-        #TODO: split by grading
         self.maps = es.EdgeStruct(self.d)
         self.computed = False
-        #self.maps = {}
-        #self.char = 0
         self.transverse = True #TODO, implement doing all of the non invariant stuff from planar diagrams more generally
         #TODO, also implement doing all of this from initializing with a grid or a braid directly. 
         self.odd = True
-        #TODO: add in storage for grading information
-        #Note: Number of components (hence dim V_alpha) is at most self.d, and thus between 1 and self.d
-        #Note: Exterior algebra alg-grading, k, is limited by dim V_alpha, and thus between 0 and dim V_alpha
-        #Note: Thus Q_0 = (dim V_alpha) - 2k is     -self.d <= Q_0 <= self.d
-        #Note: Shift S = n+ - 2* n- = self.d - 3 * self.nmin
-        #TODO: After testing compare to M_0 below
-        #Note: M_0 = "r" and thus between 0 and self.d 
-        #Note: And Q = Q_0 + S + M_0
-        #Hence: -self.d <= Q <= 2*self.d
-        #Storage convention: store in dictionary by key Q_0+M_0
-        #print("Initialized")
 
-    #TODO
     def set_odd(self):
         if not self.odd:
             self.reset()
@@ -93,7 +69,6 @@ class KhovanovHomology:
         return self.res[v]
 
     #Basic Math Checks
-
     def raw_group_dims(self):
         dims = [0 for i in range(self.d + 1)]
         for v in range(1<<self.d):

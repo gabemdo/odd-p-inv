@@ -811,27 +811,11 @@ def simultaneous_reduce(A,B):#    ,f,index):
     # Dimensions:     k     (mxk)    m   (nxm)      n        (nxk)
     n = len(A)
     m = len(B)
-    #assert len(A[0]) == m + 1
     k = len(B[0])
     tex_mat(A)
     tex_mat(B)
-    ### TESTING STUFF
-    ##char = A[0][0].c
-    ##S = [[fe.FE(0,char) for _ in range(m)] for _ in range(m)]
-    ##S_= [[fe.FE(0,char) for _ in range(m)] for _ in range(m)]
-    ##for i in range(m):
-    ##    S[i][i].n = 1
-    ##    S_[i][i].n = 1
-    #assert (m == len(A[0])), "These matrices do not compose together."
-    #first writing out the column reduction by transposition
     i = 0
-    #check each column for a pivot
-    """
-    f(A)
-    print()
-    f(B)
-    print()
-    """
+
     for row in range(n):
         #look for pivot in altered rows only:
         for mid in range(i,m):
@@ -875,29 +859,6 @@ def simultaneous_reduce(A,B):#    ,f,index):
     for row in B:
         if [el for el in row if el.nonzero()]:
             im_B += 1
-    #print("After reduction:")
-    """
-    f(A)
-    print()
-    f(B)
-    print()
-    f(S)
-    print()
-    f(S_)
-    print()
-    """
-    """
-    for i in range(m):
-        for j in range(m):
-            s = fe.FE(0,char)
-            for l in range(m):
-                s += S[i][l] * S_[l][j]
-            if i == j:
-                assert s.n == 1, "Inverse problem in product {},{}. Yields {}, not 1".format(i,j,s.n)
-            else:
-                assert s.n == 0, "Inverse problem in product {},{}. Yields {}, not 0".format(i,j,s.n)
-    """
-    #transformed_inv = [S_[i][index] for i in range(m)]
     try:
         print("m = {}, n = {}, k = {}, ker = {}, im = {}".format(m,n,k,ker_A,im_B))
     except:
@@ -991,40 +952,6 @@ def tex_mat(M):
                 print(M[row][col],end="&")
             print(M[row][m-1],"\\\\")
         print("\\end{array}\\]")
-
-"""
-def dumb_row_reduce(M):
-    n = len(M)
-    m = len(M[0])
-    i = 0
-    for col in range(m):
-        for row in range(i,n):
-            val = M[row][col]
-            if val.nonzero():
-                last_pivot_col = col
-                #print("\nPivot {}: ({},{}) = {}".format(i,row,col,val))
-                #print_mat(M)
-                if row != i:
-                    #print("\nSwap row {} and row {}".format(i,row))
-                    swap_rows(M,row,i)
-                    #print_mat(M)
-                if val != val/val:
-                    #print("\nDivide row {} by {}".format(i,val))
-                    div_row(M,i,val)
-                    #print_mat(M)
-                for row in range(n):
-                    if row != i:
-                        val = M[row][col]
-                        if val.nonzero():
-                            #print("\nSubtract {} times row {} from row {}".format(val,i,row))                            
-                            sub_row_mult(M,row,i,val)
-                            #print_mat(M)
-                i += 1
-                break
-    return last_pivot_col == m - 1
-    print()
-    print_mat(M)
-"""
 
 
 def print_mat_(M):
