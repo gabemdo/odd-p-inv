@@ -1,0 +1,172 @@
+README
+
+This README file explains the most basic functions of the essential modules. There are many other methods available in each of these classes. Information about these can be found in the comments of these files.
+
+------ Main Modules ------
+-- braid.py --
+
+Provides class: Braid
+Braid are stored as lists of ints. The length of the list is the number of crossings. The integer of a crossing has the same sign as the sign of the crossing. The magnitude of the integer represents the left strand of the crossing, where strands are numbered from 1 to b, the total number of strands.
+
+The list is ordered from the top crossing to the bottom crossing. It is assumed that the maximum magnitude of braid is exactly b-1. If free strands are required, the should be placed on the left side of the braid diagram, such as the braid [2,2,2]: the disjoin union of an unknot and a trefoil knot.
+
+For example we would initialize the braid suggested by the ascii diagram below with the list [-1,2,2]:
+
+| | |
+ \  |
+| | |
+|  /
+| | |
+|  /
+| | |
+
+Example:
+
+import braid
+trefoil = braid.Braid([1,1,1])
+
+Available methods:
+
+.get_word() --> list of ints, returns the braid word
+
+.get_crossing_number() --> int, length of braid word: the number of crossings
+
+.get_b() --> int, number of strands, b
+
+.get_nmin() --> int, number of negative crossings
+
+.self_linking_number()  --> int, the self-linking number of the transverse knot associated to the braid closure.
+
+.mirror() --> Braid, the braid whose closure is the mirror of the closure of self
+
+.reverse() --> Braid, the braid with reversed orientation
+
+.__add__(other_braid) --> Braid, the connect sum of two braids. This assumes the summands are both knots and not multicomponent links. 
+Usage:
+
+import braid
+trefoil = braid.Braid([1,1,1])
+left_trefoil = braid.Braid([-1,-1,-1])
+connect_sum = trefoil + left_trefoil
+print(connect_sum.get_word()) #prints: [1,1,1,-2,-2,-2]
+
+Note: There are additional methods that are used for computing the even and odd Khovanov homologies and the even and odd Plamenevskaya invariants.
+
+
+
+
+-- grid.py --
+
+Provides class: Grid
+Grids are stored as a pair of lists: xcol, ocol. They are the lists of the column index of each X (resp. O) given row by row.
+
+For example for the lists: 
+xcol = [1,4,5,3,2,0]
+ocol = [5,0,2,1,4,3]
+
+We can initialize the grid:
+
+- 0 1 2 3 4 5
+0 . X . . . O
+1 O . . . X .
+2 . . O . . X
+3 . O . X . .
+4 . . X . O .
+5 X . . O . .
+
+using:
+
+import grid
+xcol = [1,4,5,3,2,0]
+ocol = [5,0,2,1,4,3]
+figure_eight = grid.Grid(xcol,ocol)
+
+Available methods:
+
+.braid() --> Braid, the rightward braid from the grid
+.braid('u') --> Braid, the upward braid from the grid
+.braid('l') --> Braid, the leftward braid from the grid
+.braid('d') --> Braid, the downward braid from the grid
+
+Note: any string that starts with R,U,L,D (case independent) will give these braids.
+An integer argument (0=R,1=U,...) can also be used for easier automation.
+
+.rotate_grid(n) --> Grid, works analogously, (0 no rotation, 1 = 90 deg clockwise, ...)
+
+.tex_grid() --> string, provides tikzpicture code for LaTex diagram of the grid.
+
+.tex_knot() --> string, provides tikzpicture code for LaTeX diagram of the knot the grid defines.
+
+.tex_Legendrian_front() --> string, provides tikzpicture code for LaTeX diagram of the Legendrian front. The convention is that the grid is rotated clockwise 45 deg.
+
+
+
+
+-- khovanovhom.py --
+
+Provides class: KhovanovHomology
+Initialized with braid word.
+
+Methods:
+.comp_full_graded_homology()
+.comp_inv()
+
+Can be used to compute even homology and invariant if before computations you use:
+import khovanovhom as kh
+trefoil = kh.KhovanovHomology([1,1,1])
+trefoil.set_even()
+trefoil.comp_full_graded_homology()
+trefoil.comp_inv()
+
+
+
+
+
+
+------ Supporting Modules ------
+-- squarestruct.py --
+
+Provides class: SquareStruct
+Provides a container for the faces of the cube in Khovanov homology. Iterator used for computing the sign assignment in the odd Khovanov homology.
+
+
+-- edgestruct.py --
+
+Provides class: EdgeStruct
+Provides a container and iterator for the edges of the cube in Khovanov homology.
+
+
+-- column.py --
+
+Provides class: Row
+Provides an iterator for the labels of the matrices in the chain complex in Khovanov homology.
+
+
+-- algebra.py --
+
+Algebraic tools for field and integer homology.
+Methods include:
+
+smith_normal_form(A) --> S,D,T:  SAT = D
+
+solve_mat_eq(S,D,T,r,y) --> bool (print answer): Solves Ax = y where SAT = D is the Smith normal form of A. and r is number of nonzero pivots of A
+
+solve_mat_mult(S,d,y) --> bool (print answer): Finds smallest positive integer s such that Ax = sy has a solution. If there is no such solution, returns 0
+Assumes SAT = D is the Smith normal form of A and r is the number of nonzero pivots of A
+D = diag(d_1,..,d_r,0,..,0)
+d = [d_1,..,d_r]
+
+choose(n,k) --> int
+height(v) --> int, counts the number of 1s in binary rep of integer v
+gcd(a,b) --> int
+field_row_echelon(Matrix) --> list of list of FE (matrix), see fields.py
+field_homology(A,B,not_field = False) --> int, list of int : betti number and tor list
+homology(A,B) --> string: integer homology in string format
+
+
+-- fields.py --
+
+Provides class: FE
+A class that contains field elements of variable characteristic.
+For finite fields, characteristic = p, we initialize FE(value,p)
+For rationals, we initialize FE(n,0) for integer n or FE((n,d),0) for rational n/d.
