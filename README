@@ -124,19 +124,13 @@ trefoil.comp_inv()
 
 
 ------ Supporting Modules ------
--- squarestruct.py --
+-- cube.py --
 
 Provides class: SquareStruct
 Provides a container for the faces of the cube in Khovanov homology. Iterator used for computing the sign assignment in the odd Khovanov homology.
 
-
--- edgestruct.py --
-
 Provides class: EdgeStruct
 Provides a container and iterator for the edges of the cube in Khovanov homology.
-
-
--- column.py --
 
 Provides class: Row
 Provides an iterator for the labels of the matrices in the chain complex in Khovanov homology.
