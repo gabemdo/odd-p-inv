@@ -1,16 +1,15 @@
 import sys
 import braid as br
 import fields as fe
-import edgestruct as es
-import squarestruct as ss
+import cube
 import algebra as alg
-import column as col
 
 class KhovanovHomology:
     # Edge convention:
     ### edges are pairs(vertex, i)
     ### it is assumed that ((vertex>>i) % 2 == 0) (that is, in binary the ith place is 0)
     ### this is the edge between (vertex) and vertex + (1<<i)
+   
     # ABBREVIATIONS:
     ### inv : the invariant or associated vertices, heights, etc.
     ### res : resolution
@@ -26,17 +25,19 @@ class KhovanovHomology:
             for i in range(1 << self.d):
                 self.res[i] = self.braid.get_res(i)
                 self.res_len[i] = len(self.res[i])
-                print(self.res_len[i])
             self.inv_v = self.braid.get_inv_v()
             self.inv_r = self.braid.get_inv_r()
-            self.verticals = col.Row(self.d,self.res_len)
+            self.verticals = cube.Vertical(self.d,self.res_len)
         if False:
             self.transverse = False
             pass #TODO check if other type of input, e.g. grid or just x_diagram
-        self.edge_signs = es.EdgeStruct(self.d,0)
-        self.squares = ss.SquareStruct(self.d)
-        self.maps = es.EdgeStruct(self.d)
+        self.edge_signs = cube.EdgeStruct(self.d,0)
+        self.squares = cube.SquareStruct(self.d)
+        self.maps = cube.EdgeStruct(self.d)
         self.computed = False
+        self.homology = {}
+        self.sigma = 0
+        self.sl = 0
         self.transverse = True #TODO, implement doing all of the non invariant stuff from planar diagrams more generally
         #TODO, also implement doing all of this from initializing with a grid or a braid directly. 
         self.odd = True
@@ -52,8 +53,13 @@ class KhovanovHomology:
         self.odd = False
 
     def reset(self):
-        self.maps = es.EdgeStruct(self.d)
+        self.maps = cube.EdgeStruct(self.d)
+        self.homology = {}
+        self.sigma = 0
+        self.sl = 0
         self.computed = False
+        
+        
 
     #Basic helper functions
     def target_vertex(self,edge):
@@ -107,11 +113,10 @@ class KhovanovHomology:
 
     def dd(self,r):
         assert (r >= 0 and r < self.d - 1)
-        if not self.computed:#self.maps.is_fully_changed():
+        if not self.computed:
             self.comp_maps()
         p = [[] for _ in range(1<<self.d)]
-        #Possibly to be deprecated so field stuff is handled later.
-        zero = 0 #fe.FE(0,self.char)
+        zero = 0 
         for v,i in self.maps:
             if alg.height(v) == r:
                 u = v + (1<<i)
@@ -121,7 +126,7 @@ class KhovanovHomology:
                 for s in range(alg_size):
                     for t1 in self.maps[v,i][s]:
                         for j in range(self.d):
-                            if not u & (1<<j):#(u>>j)%2 == 0:
+                            if not u & (1<<j):
                                 if i<j:
                                     a = (i,j)
                                 else:
@@ -134,26 +139,18 @@ class KhovanovHomology:
 
     def check_dd(self):
         print("\n\nCHECKING $dd = 0$\n\n")
-        #error checking
         flag = True
-        #error_list = []
         error_dict = {}
         for r in range(self.d - 1):
             prod = self.dd(r)
-            #print(prod)
-            #print(prod,"\n")
             for v in range((1<<r)-1,(((1<<r)-1)<<(self.d-r))+1):
                 if alg.height(v) == r:
                     for g in range(len(prod[v])):
                         for de in prod[v][g]:
                             for t in prod[v][g][de]:
-                                #print("$"+str(prod[v][g][de][t])+"$, ",end="")
-                                #print(v,g,de,t,"$",str(prod[v][g][de][t]),"$",end="")
-                                if prod[v][g][de][t]:#.n:
+                                if prod[v][g][de][t]:
                                     flag = False
-                                    #error_list.append((self.str_v(v),self.str_v(g),de,self.str_v(t)))
                                     error_dict[(v,de[0],de[1])] = error_dict.get((v,de[0],de[1]),[]) + [(g,t)]
-                                    #assert False
                 else:
                     assert (not prod[v])
         if not flag:
@@ -165,10 +162,7 @@ class KhovanovHomology:
                 print("({},{},{}) : $[{}]$\n\n".format(self.str_v(v),i,j,s))
 
 
-    #Check if Invariant is Zero
-
     def make_column_dictionary(self,r,column):
-        #
         rev_dict = {}
         i = 0
         column(r)
@@ -201,7 +195,6 @@ class KhovanovHomology:
         dimV = self.get_res_len(v)
         k = alg.height(g)
         r = alg.height(v)
-        #print("grading of {},{}, dimV= {}, k={},r={}. Grading = {}".format(v,g,dimV,k,r,dimV+r-2*k))
         if self.odd:
             return dimV + r - 2*k
         return 2*k - dimV + r
@@ -212,7 +205,6 @@ class KhovanovHomology:
         if r <= self.d and r >= 0:
             self.verticals(r)
             for v,g in self.verticals:
-                #print("v,g={},{}, r={}, grade={} =?= {}".format(v,g,r,grade,self.grade(v,g)))
                 if grade == self.grade(v,g):
                     rev_dict[v,g] = i
                     i += 1
@@ -220,7 +212,7 @@ class KhovanovHomology:
 
     def make_graded_entry_dictionary_set(self):
         rev_dict = [{} for _ in range(self.d+1)]
-        i = [{} for _ in range(self.d+2)] #possibly + 2 for terminal 0s
+        i = [{} for _ in range(self.d+2)]
         for r in range(self.d+1):
             self.verticals(r)
             for v,g in self.verticals:
@@ -233,14 +225,10 @@ class KhovanovHomology:
 
     def make_matrix(self,r,column,row,augmented = False):
         n, row_i = self.make_row_dictionary(r+1,row)
-        #print(n,row_i)
         m, col_i = self.make_column_dictionary(r,column)
         col_labels = [None for _ in range(m)]
         for key in col_i:
             col_labels[col_i[key]] = key
-        #print(m,col_i)
-        #Possibly to be deprecated 
-        #M = [[fe.FE(0,self.char) for _ in range(m)] for _ in range(n)]
         M = [[0 for _ in range(m)] for _ in range(n)]
         column(r)
         for v,g in column:
@@ -255,16 +243,15 @@ class KhovanovHomology:
             inv_g = (1<<self.get_res_len(inv_v))-1
             for row in row_i:
                 if row == (inv_v, inv_g):
-                    M[row_i[row]].append(1) #fe.FE(1,self.char)) #possibly to be deprecated
+                    M[row_i[row]].append(1)
                 else:
-                    M[row_i[row]].append(0) #fe.FE(0,self.char)) #possibly to be deprecated
+                    M[row_i[row]].append(0)
         return M, col_labels
 
     def make_graded_matrix_pair(self,r,grade):
         k, col_i = self.make_graded_entry_dictionary(r-1,grade)
         m, mid_i = self.make_graded_entry_dictionary(r,grade)
         n, row_i = self.make_graded_entry_dictionary(r+1,grade)
-        #Later: turn A to non-field option?
         A = []
         B = []
         if r>0:
@@ -281,8 +268,6 @@ class KhovanovHomology:
         inv_g = 0
         if self.odd:
             inv_g = (1<<self.get_res_len(inv_v))-1
-        #print(k,m,n,inv_v,inv_g,mid_i)
-        #print(mid_i)
         inv_index = mid_i[inv_v,inv_g]
         if r < self.d:
             A = [[fe.FE(0,0) for _ in range(m)] for _ in range(n)]
@@ -301,8 +286,6 @@ class KhovanovHomology:
         k, col_i = self.make_entry_dictionary(r-1)
         m, mid_i = self.make_entry_dictionary(r)
         n, row_i = self.make_entry_dictionary(r+1)
-        # In this convention C_(r-1) --B--> C_(r) --A--> C_(r+1) so that we have AB = 0
-        # A is an (n x m) matrix and B is an (m x k) matrix.
         if field_A:
             A = [[fe.FE(0,0) for _ in range(m)] for _ in range(n)]
         else:
@@ -356,15 +339,9 @@ class KhovanovHomology:
     def make_graded_matrix_set(self):
         matrix_set = [{} for _ in range(self.d+2)]
         dim, index = self.make_graded_entry_dictionary_set()
-        #for grade in indices[0]:
-        #    matrix_set[-1][grade] = []
-        #    indices[-1][grade] = 0
         for r in range(self.d):
-            #NOTE spot of r+1 is rows
-            #NOTE spot of  r  is cols
             for grade in dim[r]:
                 matrix_set[r][grade] = [[0 for _ in range(dim[r][grade])] for _ in range(dim[r+1].get(grade,0))]
-                #indices[-1][grade] = 0 
             self.verticals(r)
             for v,g in self.verticals:
                 grade = self.grade(v,g)
@@ -374,8 +351,6 @@ class KhovanovHomology:
                         for h in self.maps[v,i][g]:
                             value = self.maps[v,i][g][h]
                             matrix_set[r][grade][index[r+1][grade][u,h]][index[r][grade][v,g]] = value
-        #for grade in indices[-1]:
-        #    print("Grade = {:>2},  {:>2}".format(grade, " ".join([" {:>2}".format(indices[r].get(grade,0)) for r in range(self.d+1)])))
         return dim, matrix_set
 
     def make_matrix(self,r):
@@ -391,118 +366,103 @@ class KhovanovHomology:
                         A[row_i[u,h]][col_i[v,g]] = self.maps[v,i][g][h]
         return A
 
-    def comp_full_graded_homology(self):
-        self.comp_maps()
-        #self.check_dd()
-        #Grading and Thin-ness stuff
-        if self.odd:
-            group_str = "KH'"
+    def comp_full_graded_homology(self, print_output = True):
+        if self.computed and print_output:
+            self.print_homology()
         else:
-            group_str = "KH"
+            self.comp_maps()
+            if print_output:
+                if self.odd:
+                    group_str = "KH'"
+                else:
+                    group_str = "KH"
 
-        shift = self.d - 3*self.braid.get_nmin()
-        print("Q-Grade is shifting up by {}. H-Grade is shifted down by {}.".format(shift,self.braid.get_nmin()))
-        diagonal = {}
-        sl = self.d - (2*self.braid.get_nmin() + self.braid.get_b())   #the self-linking number
-        #Set up
-        self.verticals = col.Row(self.d,self.res_len)
-        #print("Odd?",self.odd)
-        #print(self.maps)
-        indices, matrix_set = self.make_graded_matrix_set()
-        ##print(indices)
-        started = False
-        ended = False
-        zero_start = -1
-        for r in range(self.d+1):
-            ##print("RRRR:", r)
-            s = []
-            for grade in indices[r]:
-                if r > 0 and grade in matrix_set[r-1]:
-                    B = [row[:] for row in matrix_set[r-1][grade]]
-                else:
-                    B = []
-                if r < self.d and grade in matrix_set[r]:
-                    A = [row[:] for row in matrix_set[r].get(grade,[])]
-                else:
-                    A = []
-                #TEST to deal with m8_19 anomoly 
-                #if grade == 5 and r == 5:
-                #    print(B)
-                #    print("\n",A)
-                ##print("\nHeight: {}; Grading: {}".format(r,grade))
-                ##print(B,"\n")
-                ##print(A)
-                k = 0 if r == 0 else indices[r-1].get(grade,0)
-                m = indices[r].get(grade,0)
-                n = 0 if r == self.d else indices[r+1].get(grade,0) 
-                ##print("k= {}, m={}, n= {}".format(k,m,n))
-                #print("r = {}, grade = {}, (k,m,n) = ({},{},{})".format(r,grade,k,m,n))
-                betti,tor = alg.integer_homology(A,B,k,m,n)
-                #print("\nBetti: {}; Torsion: {}".format(betti,tor))
-                #if tor and tor[0] == 3:
-                #    print(grade,r)
-                #    print(B,"\n")
-                #    print(A,"\n")
-                #    print(k,m,n)
-                groups = (["Z^{}".format(betti)] if betti else []) + ["Z/{}".format(p) for p in tor]
-                #groups += ["Z/{}".format(p) for p in tor]
-                if groups:
-                    d = (grade+shift) - 2*(r- self.braid.get_nmin())
-                    diagonal[d] = diagonal.get(d,0) + 1
-                    if len(groups) == 1:
-                        s.append("{}[{:>2}]".format(groups[0],grade+shift))
+            shift = self.d - 3*self.braid.get_nmin()
+            #print("Q-Grade is shifting up by {}. H-Grade is shifted down by {}.".format(shift,self.braid.get_nmin()))
+            diagonal = {}
+            self.sl = self.d - (2*self.braid.get_nmin() + self.braid.get_b()) 
+            self.verticals = cube.Vertical(self.d,self.res_len)
+            indices, matrix_set = self.make_graded_matrix_set()
+            started = False
+            ended = False
+            zero_start = -1
+            for r in range(self.d+1):
+                s = []
+                for grade in indices[r]:
+                    if r > 0 and grade in matrix_set[r-1]:
+                        B = [row[:] for row in matrix_set[r-1][grade]]
                     else:
-                        s.append("({})[{:>2}]".format(" + ".join(groups),grade+shift))
-            if not s:
-                if started and not ended:
-                    ended = True
-                    zero_start = r
-                continue
-            elif ended:
-                ended = False
-                for i in range(zero_start,r):
-                    print("{}_({:>2})(L) = 0".format(group_str,i-self.braid.get_nmin()))
-                zero_start = -1
-            else:
-                started = True
-            print("{}_({:>2})(L) = {}".format(group_str,r-self.braid.get_nmin()," + ".join(s)))
-        if len(diagonal) not in [0,2]:
-            max_width = 0
-            mode_width = -1
-            for width in diagonal:
-                if diagonal[width] > max_width:
-                    max_width = diagonal[width]
-                    mode_width = width
-            if diagonal.get(mode_width+2,0) > diagonal.get(mode_width-2,0):
-                sigma = mode_width+1
-            elif diagonal.get(mode_width+2,0) < diagonal.get(mode_width-2,0):
-                sigma = mode_width-1
-            else:
-                sigma = "No guess."
-            print("Wide knot, sigma = {}, sl = {}.\n".format(sigma, sl))
-        else:
-            sigma = 0
-            for width in diagonal:
-                sigma += width
-            sigma //= 2
-            print("Thin knot, sigma = {}, sl = {}.\n".format(sigma, sl))
+                        B = []
+                    if r < self.d and grade in matrix_set[r]:
+                        A = [row[:] for row in matrix_set[r].get(grade,[])]
+                    else:
+                        A = []
+                    k = 0 if r == 0 else indices[r-1].get(grade,0)
+                    m = indices[r].get(grade,0)
+                    n = 0 if r == self.d else indices[r+1].get(grade,0) 
+                    betti,tor = alg.integer_homology(A,B,k,m,n)
+                    groups = (["Z^{}".format(betti)] if betti else []) + ["Z/{}".format(p) for p in tor]
+                    if groups:
+                        gr = r-self.braid.get_nmin()
+                        if gr in self.homology:
+                            self.homology[gr][grade+shift] = (betti,tor)
+                        else:
+                            self.homology[gr] = {grade+shift : (betti,tor)}
+
+                        d = (grade+shift) - 2*(r- self.braid.get_nmin())
+                        diagonal[d] = diagonal.get(d,0) + 1
+                        if len(groups) == 1:
+                            s.append("{}[{:>2}]".format(groups[0],grade+shift))
+                        else:
+                            s.append("({})[{:>2}]".format(" + ".join(groups),grade+shift))
+                if not s:
+                    if started and not ended:
+                        ended = True
+                        zero_start = r
+                    continue
+                elif ended:
+                    ended = False
+                    for i in range(zero_start,r):
+                        if print_output:
+                            print("{}_({:>2})(L) = 0".format(group_str,i-self.braid.get_nmin()))
+                    zero_start = -1
+                else:
+                    started = True
+                if print_output:
+                    print("{}_({:>2})(L) = {}".format(group_str,r-self.braid.get_nmin()," + ".join(s)))
+            if print_output:
+                if len(diagonal) not in [0,2]:
+                    max_width = 0
+                    mode_width = -1
+                    for width in diagonal:
+                        if diagonal[width] > max_width:
+                            max_width = diagonal[width]
+                            mode_width = width
+                    if diagonal.get(mode_width+2,0) > diagonal.get(mode_width-2,0):
+                        self.sigma = mode_width+1
+                    elif diagonal.get(mode_width+2,0) < diagonal.get(mode_width-2,0):
+                        self.sigma = mode_width-1
+                    else:
+                        self.sigma = "No guess."
+                    print("Wide knot, sigma = {}, sl = {}.\n".format(self.sigma, self.sl))
+                else:
+                    self.sigma = 0
+                    for width in diagonal:
+                        self.sigma += width
+                    self.sigma //= 2
+                    print("Thin knot, sigma = {}, sl = {}.\n".format(self.sigma, self.sl))
 
     def comp_homology(self,char = -1,r = -1,tex = True):
-        #prepare maps
         self.comp_maps()
         for i in range(1<<self.d):
             if not self.res_len[i]:
                 assert False, "We should not get here because res_len should be set by comp_maps."
                 self.get_res_len(i)
-        self.verticals = col.Row(self.d,self.res_len)
+        self.verticals = cube.Vertical(self.d,self.res_len)
         if r == -1:
             chain_maps = [None for _ in range(self.d)]
             for r in range(self.d):
                 chain_maps[r] = self.make_matrix(r,self.verticals)
-                #alg.print_mat_(chain_maps[r])
-                #print()
-                ##### STUFF
-            #this adds the map from r=-1 and r=self.d the map []
             chain_maps.append([])
             for r in range(self.d+1):
                 if char != 1:
@@ -612,17 +572,14 @@ class KhovanovHomology:
         else:
             group_str = "KH"
 
-        #print(v,g)
         grade = self.grade(v,g)
-        #make a comp_maps that ignores extra levels
         self.comp_maps()
         for i in range(1<<self.d):
             if not self.res_len[i]:
                 assert False, "We should not get here because res_len should be set by comp_maps."
                 self.get_res_len(i)
-        self.verticals = col.Row(self.d,self.res_len)
+        self.verticals = cube.Vertical(self.d,self.res_len)
         A_Q,B,k,m,n,inv_index = self.make_graded_matrix_pair(r,grade)
-        #print(k,m,n,B)
         if m and k:
             assert len(B) == m
             assert len(B[0]) == k
@@ -687,19 +644,16 @@ class KhovanovHomology:
         for i in range(1<<self.d):
             if not self.res_len[v]:
                 self.get_res_len(v)
-        column = col.Row(self.d,self.res_len)
-        row = col.Row(self.d,self.res_len)
+        column = cube.Vertical(self.d,self.res_len)
+        row = cube.Vertical(self.d,self.res_len)
         M, _ = self.make_matrix(r-1,column,row,True)
-        #alg.print_mat(M)
         if alg.dumb_row_reduce(M):
             print("\n\nThe Invariant is Non-ZERO: Pivot in last column\n")
         else:
             print("\n\nThe Invariant is ZERO: All pivots before last column\n")
-        #alg.print_mat(M)
         print("\n\n")
         return 1
 
-    #TODO: deprecated??
     def inv_factors(self):
         v = self.inv_v
         r = self.inv_r
@@ -710,11 +664,10 @@ class KhovanovHomology:
         for i in range(1<<self.d):
             if not self.res_len[v]:
                 self.get_res_len(v)
-        column = col.Row(self.d,self.res_len)
-        row = col.Row(self.d,self.res_len)
+        column = cube.Vertical(self.d,self.res_len)
+        row = cube.Vertical(self.d,self.res_len)
         M, col_labels = self.make_matrix(r-1,column,row,True)
         for char in [0,2,3,5]:
-            #copy matrix
             TempM = [[fe.FE(M[i][j],char) for j in range(len(M[0]))] for i in range(len(M))]
             assert len(col_labels) == len(TempM[0]), "{},{},{}".format(self.word,len(col_labels),len(TempM[0]))
             in_image, factor = alg.dumber_row_reduce(TempM, col_labels,self.d)
@@ -740,7 +693,6 @@ class KhovanovHomology:
         """
 
 
-    #TeX output functions
     def str_q(self,a,p):
         if a == 0:
             return ""
@@ -763,7 +715,21 @@ class KhovanovHomology:
         if p == 1:
             return " - " + str(a) + "q"
         return " - " + str(-a) + "q^{" + str(p) + "}"
-        #Raise exception if here
+
+    def print_homology(self):
+        for n in self.homology:
+            left = "Kh{}_({:>2})(L) = ".format(("'" if self.odd else ""), n)
+            right = []
+            for k in self.homology[n]:
+                betti, tor = self.homology[n][k]
+                groups = (["Z^{}".format(betti)] if betti else []) + ["Z/{}".format(p) for p in tor]
+                if len(groups) == 1:
+                    right.append("{}[{:>2}]".format(groups[0],k))
+                else:
+                    right.append("({})[{:>2}]".format(" + ".join(groups),k))
+
+            print(left + " + ".join(right))
+                         
 
     def print_Jones(self):
         poly = self.euler_characteristic()
@@ -823,7 +789,6 @@ class KhovanovHomology:
         print("Vertex:",self.str_v(self.inv_v))
         print("\nThe distinguished vertex's resolution:")
         print("\\[{}\\]".format(self.get_res(self.inv_v)))
-        #print("The algebra element of the invariant is", "1"*self.b)
         if ddCheck:
             self.check_dd()
         print("\n\n\n\\subsection*{The Invariant and its Homology Group}\n")
@@ -857,7 +822,6 @@ class KhovanovHomology:
 
 
 
-    #Resolution Computation
     def get_res_len(self,v):
         if isinstance(v,int):
             assert (v < (1<<self.d))
@@ -872,14 +836,12 @@ class KhovanovHomology:
         for i in range(len(resolution)):
             if segment in resolution[i]:
                 return i
-        #Raise exception if here
 
 
 
     #Map Computation
-
     def comp_maps(self):
-        if self.computed: #self.maps.is_fully_changed():
+        if self.computed:
             return None
         if self.odd:
             self.comp_edge_signs()
@@ -889,8 +851,7 @@ class KhovanovHomology:
 
     def comp_edge_signs(self):
         ## Algorithm due to Shumakovitch
-        #Make sure edge_signs is initialized
-        if self.computed: #self.edge_signs.is_fully_changed():
+        if self.computed: 
             return self.edge_signs
         n = self.d
         for delta in range(self.d):
@@ -947,10 +908,9 @@ class KhovanovHomology:
         v = edge[0]
         u = self.target_vertex(edge)
         v_res_len, u_res_len = self.get_res_len(edge)
-        #'edge[0] + (1<<edge[1])
         if v_res_len < u_res_len:
             if self.odd:
-                edge_map = self.split_map(edge) #TAG FIELD UPDATE
+                edge_map = self.split_map(edge) 
                 self.scalar_mult_algebra_map(self.get_edge_sign(edge),edge_map)
             else:
                 edge_map = self.even_split_map(edge)
@@ -967,7 +927,6 @@ class KhovanovHomology:
             return edge_map
 
     def even_merge_map(self,edge):
-        #print("Not assigned, Merge")
         v = edge[0]
         v_res = self.get_res(v)
         v_res_len = len(v_res)
@@ -977,7 +936,6 @@ class KhovanovHomology:
         for k in range(v_res_len):
             circle = self.get_circle(u,v_res[k][0])
             if i < 0 and circle in target_circles:
-                #print("Assigned, Merge")
                 i = target_circles.index(circle)
                 j = len(target_circles)
             target_circles.append(circle)
@@ -989,7 +947,6 @@ class KhovanovHomology:
         return edge_map
 
     def even_split_map(self,edge):
-        #print("Not assigned, Split",edge)
         v = edge[0]
         v_res_len = self.get_res_len(v)
         u = self.target_vertex(edge)
@@ -1001,13 +958,10 @@ class KhovanovHomology:
         for k in range(u_res_len):
             circle = self.get_circle(v,u_res[k][0])
             if i < 0 and circle in source_circles:
-                #print("Assigned, Split")
                 i = source_circles.index(circle)
                 j = len(source_circles)
-                #print(i,j)
                 break
             source_circles.append(circle)
-        #print(source_circles)
         edge_map = [{} for _ in range(1<<v_res_len)]
         for g in range(1<<v_res_len):
             targets = self.even_split(g,i,j)
@@ -1025,8 +979,7 @@ class KhovanovHomology:
 
     def add_algebra_maps(self,map1,map2):
         assert (len(map1) == len(map2))
-        #Possibly to be deprecated so field stuff is handled later
-        zero = 0 #fe.FE(0,self.char)
+        zero = 0
         for i in range(len(map2)):
             for key in map2[i]:
                 map1[i][key] = map1[i].get(key,0) + map2[i][key]
@@ -1035,14 +988,11 @@ class KhovanovHomology:
     def induced_map(self,v,vmap):
         xd = self.get_res_len(v)
         assert (xd == len(vmap))
-        #Possibly to be deprecated so field stuff is handled later
-        zero = 0 #fe.FE(0,self.char)
-        #print(vmap)
+        zero = 0
         algebra_map = [{} for _ in range(1<<xd)]
         for i in range(1<<xd):
             ls = []
-            #Possibly to be deprecated so field stuff is handled later
-            p = 1 #fe.FE(1,self.char)
+            p = 1
             for j in range(xd):
                 if (i>>j)%2 == 1:
                     ls.append(vmap[j][0])
@@ -1059,7 +1009,6 @@ class KhovanovHomology:
                         ls = []
                         break
             target = 0
-            #print(ls)
             for t in ls:
                 target += (1<<t)
             if sign:
@@ -1075,7 +1024,6 @@ class KhovanovHomology:
         target_res = self.get_res(target)
         a = self.braid.get_x_diagram()[edge[1]]
         bmap = [None for _ in range(self.get_res_len(source))]
-        #head,tail
         d = [-1,-1]
         for j in range(self.get_res_len(target)):
             #arrow tail in target ?
@@ -1087,16 +1035,15 @@ class KhovanovHomology:
                 #if not involved in the split
                 if a[0] not in source_res[i]:
                     if source_res[i][0] in target_res[j]:
-                        bmap[i] = (j,1) #fe.FE(1,self.char)) #possibly to be deprecated
+                        bmap[i] = (j,1)
                 #if involved in the split
                 else: 
                     #arrow head in target ?
                     if a[0] in target_res[j]:
-                        bmap[i] = (j,1) #fe.FE(1,self.char)) #poassibly to be deprecated
+                        bmap[i] = (j,1)
                         assert(d[0] == -1)
                         d[0] = j
-        #print(bmap)
-        imap = self.induced_map(edge[0],bmap) #TAG for UPDATE
+        imap = self.induced_map(edge[0],bmap)
         map0 = [{} for _ in range(len(imap))]
         map1 = [{} for _ in range(len(imap))]
         for i in range(len(imap)):
@@ -1107,28 +1054,17 @@ class KhovanovHomology:
                         if (key>>j)%2 == 1:
                             sign *= -1
                     map0[i][key+(1<<d[0])] = -imap[i][key]*sign
-                #else:
-                #    map0[i][0] = 0
                 if (key>>d[1])%2 == 0:
                     sign = 1
                     for j in range(d[1]):
                         if (key>>j)%2 == 1:
                             sign *= -1
-                    #print("i,key,imap[i],d[1]")
-                    #print(i,key,imap[i],d[1])
-                    #print_mapnt("map1[i][j+(1<<d[1])] = -1*imap[i][key]")
                     map1[i][key+(1<<d[1])] = imap[i][key]*sign
-                #else:
-                #    map1[i][0] = 0
-        #print(imap)
-        #print(d)
-        #print(map0,map1)
         self.add_algebra_maps(map0,map1)
         return map0
 
 
     #Even Khovanov Homology
-
     def even_edge_sign(self,edge):
         i = 1
         for k in range(edge[1]):
@@ -1159,90 +1095,6 @@ class KhovanovHomology:
         if (g >> i) % 2:
             return[split+(1<<i),split+(1<<j)]
         return [split]
-
-
-    #Possibly Defunct Functions 
-    """ 
-    def get_edges_out_of_inv(self):
-        if not self.edges_out_of_inv:
-            self.edges_out_of_inv = self.edges_out(self.get_inv_v())
-        return self.edges_out_of_inv
-
-    def get_edges_into_inv(self):
-        if not self.edges_into_inv:
-            self.edges_into_inv = self.edges_in(self.get_inv_v())
-        return self.edges_into_inv
-
-    def edges(self):
-        #Check if edges_signs has already be initilized or computed
-        if self.edge_signs.is_fully_changed():
-            return self.edge_signs
-        n = self.d
-        vertices = []
-        for i in range(1<<n):
-            e = {}
-            for j in range(n):
-                if self.v(i,j) == 0:
-                    e[j] = (1 if i < (1<<j) else 0)
-            vertices.append(e)
-        self.edge_signs = vertices
-        return vertices
-
-    def explanation(self):
-        print("Braid:",self.word)
-        print("Vertices that map to cycle's vertex:")
-        edges_in = self.get_edges_into_inv()
-        for edge in edges_in:
-            print("  Vertex:", self.str_v(edge[0]),"del:",edge[1],
-                  "Resolution:",
-                  self.get_res(edge[0]))
-            print("  Map:")
-            self.print_map(self.edge_map(edge),edge)
-        if not edges_in:
-            print("    NONE")
-        print("The distinguished vertex:")
-        print("    Vertex:",self.str_v(self.get_inv_v()),
-              "Resolution:",self.get_res(self.get_inv_v()))
-        print("Vertices that the vertex maps to:")
-        edges_out = self.get_edges_out_of_inv()
-        for edge in edges_out:
-            print("  Vertex:", self.str_v(edge[0]+(1<<edge[1])),"del:",edge[1],
-                  "Resolution:",
-                  self.get_res(edge[0]+(1<<edge[1])))
-            print("  Map:")
-            self.print_map(self.edge_map(edge),edge)
-
-    def height(self,v):
-        r = 0 
-        while v:
-            r += v%2
-            v = v >> 1
-        return r
-
-    def edges_out(self,v):
-        #Returns the list of edges out of vertex 
-        #format: list of tuples (vertex,i)
-        #this is the edge between vertex and vertex + (1<<i)
-        i = 0
-        edges = []
-        for i in range(self.d):
-            if (v >> i) % 2 == 0:
-                edges.append((v,i))
-        return edges
-
-    def edges_in(self,v):
-        #Returns the lsit of edges in of vertex
-        #format: list of tuples (v,i)
-        #this is the edge between v and vertex 
-        #such that v + (1<<i) = vertex
-        i = 0
-        edges = []
-        for i in range(self.d):
-            if (v>>i) % 2 == 1:
-                edges.append((v - (1<<i),i))
-        return edges
-    """
-
 
 
 
@@ -1281,12 +1133,6 @@ def driver(fancy = False):
         if fancy:
             b = Braid(braid[1])
             b.texplanation(braid[0],False)
-            #print(b.edge_signs)
-            #for map in b.maps:
-            #    print(map,b.maps[map],"\n\n")
-            #for v,i,j in b.squares:
-            #    print((b.str_v(v),i,j),b.squares[v,i,j],"\n\n")
-            #print("\\newpage\n\n")
         else:
             b = Braid(braid)
             b.texplanation()
@@ -1296,9 +1142,7 @@ def test_driver():
     braid_list = make_fancy_braid_list(sys.argv[1])
     for braid in braid_list:
         b = Braid(braid[1])
-        #print(braid[0], b.raw_euler_characteristic())
         print(braid[0], b.print_Jones())
 
 if __name__ == "__main__":
-    #test_driver()
     driver(True)
